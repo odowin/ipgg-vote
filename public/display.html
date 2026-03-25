@@ -10,10 +10,6 @@
     .session-name { font-size: 1.5rem; font-weight: 700; letter-spacing: .02em; margin-bottom: 24px; opacity: .9; text-align: center; }
     .qr-wrap { background: #fff; border-radius: 16px; padding: 20px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
     .qr-wrap img { display: block; width: min(80vw, 80vh, 500px); height: auto; }
-    .countdown-bar { margin-top: 24px; width: min(80vw, 500px); }
-    .bar-label { display: flex; justify-content: space-between; font-size: .85rem; opacity: .6; margin-bottom: 6px; }
-    .bar-track { background: rgba(255,255,255,.15); border-radius: 99px; height: 6px; overflow: hidden; }
-    .bar-fill { background: #38bdf8; height: 100%; border-radius: 99px; transition: width .5s linear; }
     .status-badge { margin-top: 20px; padding: 6px 16px; border-radius: 99px; font-size: .85rem; font-weight: 600; }
     .badge-open { background: #065f46; color: #6ee7b7; }
     .badge-closed { background: #7f1d1d; color: #fca5a5; }
@@ -29,9 +25,6 @@
       <img id="qr-img" src="" alt="QR Code" />
     </div>
     <div class="error-msg" id="error-msg" style="display:none"></div>
-    <div id="countdown-bar" style="display:none">
-      <div class="bar-track"><div class="bar-fill" id="bar-fill" style="width:100%"></div></div>
-    </div>
     <div id="status-badge" style="display:none"></div>
   </div>
   <button class="fullscreen-btn" onclick="toggleFullscreen()">⛶ Plein écran</button>
@@ -43,7 +36,6 @@
     const k = params.get('k');
     let windowMs = 30000; // updated from API on each load
     let refreshTimer = null;
-    let countdownInterval = null;
 
     if (!s || !k) {
       document.getElementById('session-name').textContent = 'Lien invalide';
@@ -65,7 +57,6 @@
 
         const isOpen = data.sessionStatus === 'open';
         document.getElementById('qr-wrap').style.display = isOpen ? 'block' : 'none';
-        document.getElementById('countdown-bar').style.display = isOpen ? 'block' : 'none';
         document.getElementById('error-msg').style.display = isOpen ? 'none' : 'block';
         const closedMsg = {
           closed:   'Session fermée — le vote n\'est pas encore ouvert.',
@@ -76,7 +67,6 @@
         if (isOpen) {
           if (data.windowSeconds) windowMs = data.windowSeconds * 1000;
           document.getElementById('qr-img').src = data.dataUrl;
-          startCountdown(data.expiresIn);
           if (refreshTimer) clearTimeout(refreshTimer);
           refreshTimer = setTimeout(loadQR, data.expiresIn + 500);
         } else {
@@ -89,18 +79,6 @@
       }
     }
 
-    function startCountdown(expiresIn) {
-      if (countdownInterval) clearInterval(countdownInterval);
-      let remaining = expiresIn;
-      const bar = document.getElementById('bar-fill');
-      document.getElementById('countdown-bar').style.display = 'block';
-      function tick() {
-        bar.style.width = Math.max(0, (remaining / windowMs) * 100) + '%';
-        remaining -= 1000;
-      }
-      tick();
-      countdownInterval = setInterval(tick, 1000);
-    }
 
     function toggleFullscreen() {
       if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
