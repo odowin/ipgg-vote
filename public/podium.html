@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Podium – IPGG Vote</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --gold:   #f59e0b;
+      --silver: #94a3b8;
+      --bronze: #b45309;
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: #060612;
+      color: #fff;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* ── Stars background ── */
+    #stars-canvas {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    }
+
+    /* ── Confetti canvas ── */
+    #confetti-canvas {
+      position: fixed; inset: 0; z-index: 50; pointer-events: none;
+    }
+
+    /* ── Layout ── */
+    #scene {
+      position: relative; z-index: 1;
+      width: 100vw; height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 0;
+    }
+
+    /* ── Session name ── */
+    #session-label {
+      position: fixed; top: 28px; left: 0; right: 0;
+      text-align: center;
+      font-size: clamp(.8rem, 2vw, 1.1rem);
+      font-weight: 600;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,.35);
+      z-index: 10;
+    }
+
+    /* ── Hint ── */
+    #hint {
+      position: fixed; bottom: 28px; left: 0; right: 0;
+      text-align: center;
+      font-size: .85rem;
+      color: rgba(255,255,255,.25);
+      z-index: 10;
+      transition: opacity .5s;
+    }
+
+    /* ══════════════════════════════════════
+       SPLASH SCREEN
+    ══════════════════════════════════════ */
+    #splash {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 32px;
+      text-align: center;
+      padding: 40px;
+    }
+
+    #splash .trophy { font-size: clamp(4rem, 12vw, 8rem); animation: float 3s ease-in-out infinite; }
+    #splash h1 {
+      font-size: clamp(1.8rem, 5vw, 3.5rem);
+      font-weight: 800;
+      background: linear-gradient(135deg, #f59e0b, #fde68a, #f59e0b);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    #splash p {
+      font-size: clamp(.9rem, 2vw, 1.2rem);
+      color: rgba(255,255,255,.5);
+      max-width: 420px;
+    }
+    #splash .start-btn {
+      margin-top: 8px;
+      padding: 16px 48px;
+      font-size: clamp(1rem, 2.5vw, 1.3rem);
+      font-weight: 700;
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: #000;
+      border: none; border-radius: 99px;
+      cursor: pointer;
+      box-shadow: 0 0 40px rgba(245,158,11,.4);
+      transition: transform .15s, box-shadow .15s;
+    }
+    #splash .start-btn:hover { transform: scale(1.05); box-shadow: 0 0 60px rgba(245,158,11,.6); }
+
+    /* ══════════════════════════════════════
+       PODIUM AREA
+    ══════════════════════════════════════ */
+    #podium-area {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      padding: 80px 24px 80px;
+    }
+
+    /* ── Rank label ── */
+    .rank-announce {
+      font-size: clamp(.75rem, 2vw, 1rem);
+      font-weight: 700;
+      letter-spacing: .3em;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+      opacity: 0;
+      transform: translateY(-20px);
+      transition: opacity .6s .1s, transform .6s .1s;
+    }
+    .rank-announce.visible { opacity: 1; transform: none; }
+
+    /* ── Medal ── */
+    .medal {
+      font-size: clamp(4rem, 12vw, 7rem);
+      line-height: 1;
+      opacity: 0;
+      transform: scale(.4) rotate(-20deg);
+      transition: opacity .5s .3s, transform .5s cubic-bezier(.34,1.56,.64,1) .3s;
+      margin-bottom: 16px;
+    }
+    .medal.visible { opacity: 1; transform: scale(1) rotate(0deg); }
+
+    /* ── Name card ── */
+    .winner-card {
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 24px;
+      padding: clamp(24px, 4vw, 40px) clamp(32px, 6vw, 80px);
+      text-align: center;
+      max-width: 700px; width: 100%;
+      opacity: 0;
+      transform: translateY(40px);
+      transition: opacity .6s .5s, transform .6s cubic-bezier(.34,1.4,.64,1) .5s;
+      position: relative; overflow: hidden;
+    }
+    .winner-card::before {
+      content: '';
+      position: absolute; inset: 0;
+      border-radius: 24px;
+      opacity: 0;
+      transition: opacity .8s .8s;
+    }
+    .winner-card.visible { opacity: 1; transform: none; }
+    .winner-card.visible::before { opacity: 1; }
+
+    /* Rank-specific glow */
+    .rank-1 .winner-card { border-color: rgba(245,158,11,.3); }
+    .rank-1 .winner-card::before { background: radial-gradient(ellipse at 50% 0%, rgba(245,158,11,.12) 0%, transparent 70%); }
+    .rank-1 .rank-announce { color: var(--gold); }
+
+    .rank-2 .winner-card { border-color: rgba(148,163,184,.25); }
+    .rank-2 .winner-card::before { background: radial-gradient(ellipse at 50% 0%, rgba(148,163,184,.1) 0%, transparent 70%); }
+    .rank-2 .rank-announce { color: var(--silver); }
+
+    .rank-3 .winner-card { border-color: rgba(180,83,9,.25); }
+    .rank-3 .winner-card::before { background: radial-gradient(ellipse at 50% 0%, rgba(180,83,9,.1) 0%, transparent 70%); }
+    .rank-3 .rank-announce { color: var(--bronze); }
+
+    .winner-name {
+      font-size: clamp(1.6rem, 5vw, 3.2rem);
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 12px;
+      color: #fff;
+    }
+    .rank-1 .winner-name {
+      background: linear-gradient(135deg, #fde68a, #f59e0b, #fde68a);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .winner-desc {
+      font-size: clamp(.85rem, 1.8vw, 1.05rem);
+      color: rgba(255,255,255,.5);
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+
+    .winner-votes {
+      display: inline-flex; align-items: center; gap: 10px;
+      background: rgba(255,255,255,.07);
+      border-radius: 99px;
+      padding: 8px 20px;
+      font-size: clamp(.8rem, 1.6vw, 1rem);
+      font-weight: 600;
+      color: rgba(255,255,255,.7);
+      opacity: 0;
+      transition: opacity .4s 1s;
+    }
+    .winner-card.visible .winner-votes { opacity: 1; }
+
+    .vote-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+    }
+    .rank-1 .vote-dot { background: var(--gold); }
+    .rank-2 .vote-dot { background: var(--silver); }
+    .rank-3 .vote-dot { background: var(--bronze); }
+
+    /* ── Photo (if photo contest) ── */
+    .winner-photo {
+      width: clamp(100px, 18vw, 200px);
+      height: clamp(100px, 18vw, 200px);
+      object-fit: cover;
+      border-radius: 16px;
+      margin: 0 auto 20px;
+      display: block;
+      opacity: 0;
+      transition: opacity .5s .7s;
+      border: 2px solid rgba(255,255,255,.1);
+    }
+    .winner-card.visible .winner-photo { opacity: 1; }
+
+    /* ── Recap platform bars ── */
+    .rbar {
+      border-radius: 10px 10px 0 0;
+      transform: scaleY(0);
+      transform-origin: bottom;
+      transition: transform .8s cubic-bezier(.34,1.2,.64,1);
+    }
+    .rbar.show { transform: scaleY(1); }
+    .rbar-1 { height: clamp(120px,20vh,240px); background: linear-gradient(180deg,rgba(245,158,11,.6),rgba(245,158,11,.12)); border:1px solid rgba(245,158,11,.4); transition-delay:.05s; }
+    .rbar-2 { height: clamp(85px,14vh,170px);  background: linear-gradient(180deg,rgba(148,163,184,.5),rgba(148,163,184,.1)); border:1px solid rgba(148,163,184,.3); transition-delay:.2s; }
+    .rbar-3 { height: clamp(60px,10vh,120px);  background: linear-gradient(180deg,rgba(180,83,9,.5),rgba(180,83,9,.1)); border:1px solid rgba(180,83,9,.3); transition-delay:.35s; }
+
+    /* ── Recap winner columns ── */
+    .recap-winner {
+      flex: 1;
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+      opacity: 0; transform: translateY(30px);
+      transition: opacity .6s, transform .6s cubic-bezier(.34,1.4,.64,1);
+      padding: 0 8px 16px;
+    }
+    .recap-winner.show { opacity: 1; transform: none; }
+    .recap-winner.place-1 { transition-delay: .1s; }
+    .recap-winner.place-2 { transition-delay: .3s; }
+    .recap-winner.place-3 { transition-delay: .5s; }
+
+    .recap-medal { font-size: clamp(2.5rem,7vw,5rem); line-height:1; margin-bottom: clamp(8px,1.5vh,16px); }
+    .recap-photo {
+      width: clamp(80px,14vw,200px); height: clamp(80px,14vw,200px);
+      object-fit: cover; border-radius: 16px; margin-bottom: clamp(8px,1.5vh,16px);
+      border: 2px solid rgba(255,255,255,.15);
+    }
+    .recap-name {
+      font-weight: 800; text-align: center; line-height: 1.2;
+      margin-bottom: 8px;
+    }
+    .place-1 .recap-name { font-size: clamp(1.1rem,3.2vw,2.2rem); color:#fde68a; }
+    .place-2 .recap-name { font-size: clamp(.9rem,2.4vw,1.6rem); color:#e2e8f0; }
+    .place-3 .recap-name { font-size: clamp(.9rem,2.4vw,1.6rem); color:#d97706; }
+    .recap-votes {
+      font-size: clamp(.7rem,1.5vw,1rem); color: rgba(255,255,255,.45);
+      font-weight: 600; text-align:center;
+    }
+
+    /* ── Animations ── */
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50%       { transform: translateY(-12px); }
+    }
+
+    /* ── Reveal container ── */
+    #reveal {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 0;
+      width: 100%;
+    }
+
+    /* ── Nav dots ── */
+    #nav-dots {
+      position: fixed; bottom: 52px; left: 0; right: 0;
+      display: flex; justify-content: center; gap: 8px; z-index: 10;
+    }
+    .nav-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: rgba(255,255,255,.2);
+      transition: background .3s, transform .3s;
+    }
+    .nav-dot.active { background: #fff; transform: scale(1.3); }
+    .nav-dot.done   { background: rgba(255,255,255,.5); }
+  </style>
+</head>
+<body>
+
+<canvas id="stars-canvas"></canvas>
+<canvas id="confetti-canvas"></canvas>
+
+<div id="session-label">Chargement…</div>
+
+<div id="scene">
+
+  <!-- Splash -->
+  <div id="splash">
+    <div class="trophy">🏆</div>
+    <h1 id="splash-title">Les résultats</h1>
+    <p id="splash-sub">Découvrez les lauréats de cette session</p>
+    <button class="start-btn" id="start-btn">Révéler les résultats</button>
+  </div>
+
+  <!-- Podium area -->
+  <div id="podium-area">
+    <div id="reveal"></div>
+  </div>
+
+  <!-- Inter-set transition screen -->
+  <div id="interset" style="display:none;flex-direction:column;align-items:center;justify-content:center;gap:32px;text-align:center;padding:40px;">
+    <div id="interset-icon" style="font-size:4rem"></div>
+    <h2 id="interset-title" style="font-size:clamp(1.8rem,5vw,3.5rem);font-weight:800;color:#fff;"></h2>
+    <p style="color:rgba(255,255,255,.5)">Cliquez pour révéler</p>
+  </div>
+
+</div>
+
+<!-- Final podium recap (all 3 together) -->
+<div id="recap" style="display:none;position:fixed;inset:0;z-index:20;background:transparent;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;gap:2vh;padding:5vh 0 0;">
+
+  <!-- Header : session-label already fixed at top, just show PALMARÈS -->
+  <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;">
+    <div style="font-size:clamp(1.4rem,4vw,2.8rem);font-weight:900;letter-spacing:.06em;background:linear-gradient(135deg,#fde68a,#f59e0b,#fde68a);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">PALMARÈS</div>
+  </div>
+
+  <!-- 3 columns: 2nd | 1st | 3rd -->
+  <div id="recap-cols" style="position:relative;z-index:1;display:flex;align-items:flex-start;justify-content:center;width:100%;max-width:1000px;padding:0 24px;gap:clamp(8px,2vw,24px);"></div>
+
+  <!-- Platform bars -->
+  <div id="recap-bars" style="position:relative;z-index:1;display:flex;align-items:flex-end;justify-content:center;width:100%;max-width:1000px;padding:0 24px;gap:clamp(8px,2vw,24px);">
+    <div class="rbar rbar-2" style="flex:1"></div>
+    <div class="rbar rbar-1" style="flex:1"></div>
+    <div class="rbar rbar-3" style="flex:1"></div>
+  </div>
+</div>
+
+<!-- Both recap: jury (left) + public (right) -->
+<div id="recap-both" style="display:none;position:fixed;inset:0;z-index:20;background:transparent;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;gap:1.5vh;padding:5vh 0 0;">
+  <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;">
+    <div style="font-size:clamp(1.2rem,3.5vw,2.4rem);font-weight:900;letter-spacing:.06em;background:linear-gradient(135deg,#fde68a,#f59e0b,#fde68a);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">PALMARÈS</div>
+  </div>
+  <div style="position:relative;z-index:1;display:flex;width:100%;max-width:1200px;padding:0 16px;gap:clamp(12px,2vw,32px);align-items:flex-end;">
+    <!-- Jury podium -->
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:1vh;">
+      <div style="font-size:clamp(.8rem,2vw,1.2rem);font-weight:700;letter-spacing:.08em;color:#c4b5fd;opacity:.9">⚖️ JURY</div>
+      <div id="rb-jury-cols" style="display:flex;align-items:flex-end;justify-content:center;width:100%;gap:clamp(4px,1vw,12px);"></div>
+      <div style="display:flex;align-items:flex-end;justify-content:center;width:100%;gap:clamp(4px,1vw,12px);">
+        <div class="rbar rbar-2" style="flex:1" id="rb-jury-bar2"></div>
+        <div class="rbar rbar-1" style="flex:1" id="rb-jury-bar1"></div>
+        <div class="rbar rbar-3" style="flex:1" id="rb-jury-bar3"></div>
+      </div>
+    </div>
+    <!-- Divider -->
+    <div style="width:2px;background:rgba(255,255,255,.12);align-self:stretch;border-radius:2px;flex-shrink:0"></div>
+    <!-- Public podium -->
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:1vh;">
+      <div style="font-size:clamp(.8rem,2vw,1.2rem);font-weight:700;letter-spacing:.08em;color:#6ee7b7;opacity:.9">🗳️ PRIX DU PUBLIC</div>
+      <div id="rb-pub-cols" style="display:flex;align-items:flex-end;justify-content:center;width:100%;gap:clamp(4px,1vw,12px);"></div>
+      <div style="display:flex;align-items:flex-end;justify-content:center;width:100%;gap:clamp(4px,1vw,12px);">
+        <div class="rbar rbar-2" style="flex:1" id="rb-pub-bar2"></div>
+        <div class="rbar rbar-1" style="flex:1" id="rb-pub-bar1"></div>
+        <div class="rbar rbar-3" style="flex:1" id="rb-pub-bar3"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="nav-dots"></div>
+<div id="hint">Cliquez n'importe où pour continuer</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const params     = new URLSearchParams(window.location.search);
+  const s          = params.get('s');
+  const k          = params.get('k');
+  const showVotes  = params.get('votes') === '1';
+  const source     = params.get('source') || 'votes'; // 'votes', 'jury', 'both'
+  const topPublic  = parseInt(params.get('top')) || 3; // for 'both': how many public winners to reveal
+
+  let setsToReveal = []; // [{winners, label}]
+  let currentSet   = 0;
+  let winners  = [];   // active set's winners [1st, 2nd, 3rd, ...]
+  let juryWinners  = [];
+  let pubWinners   = [];
+  let step     = -1;   // -1 = splash, 0 = 3rd, 1 = 2nd, 2 = 1st
+  let animating = false;
+  let intersetPending = false;
+
+  // ── Stars ─────────────────────────────────────────────────────────────────
+  (function initStars() {
+    const canvas = document.getElementById('stars-canvas');
+    const ctx    = canvas.getContext('2d');
+    let stars    = [];
+
+    function resize() {
+      canvas.width  = window.innerWidth;
+      canvas.height = window.innerHeight;
+      stars = Array.from({ length: 180 }, () => ({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        r: Math.random() * 1.4 + .2,
+        a: Math.random(),
+        speed: Math.random() * .003 + .001,
+        phase: Math.random() * Math.PI * 2,
+      }));
+    }
+
+    function draw(t) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      stars.forEach(st => {
+        const alpha = .2 + .6 * (.5 + .5 * Math.sin(t * st.speed * 1000 + st.phase));
+        ctx.beginPath();
+        ctx.arc(st.x, st.y, st.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+        ctx.fill();
+      });
+      requestAnimationFrame(draw);
+    }
+
+    window.addEventListener('resize', resize);
+    resize();
+    requestAnimationFrame(draw);
+  })();
+
+  // ── Confetti ──────────────────────────────────────────────────────────────
+  let confettiPieces = [];
+  let confettiRunning = false;
+
+  function launchConfetti() {
+    const canvas = document.getElementById('confetti-canvas');
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const ctx = canvas.getContext('2d');
+    const colors = ['#f59e0b','#fde68a','#fff','#60a5fa','#34d399','#f472b6','#a78bfa'];
+
+    confettiPieces = Array.from({ length: 200 }, () => ({
+      x: Math.random() * canvas.width,
+      y: -20 - Math.random() * canvas.height * .5,
+      w: 6 + Math.random() * 8,
+      h: 3 + Math.random() * 5,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      angle: Math.random() * Math.PI * 2,
+      vx: (Math.random() - .5) * 4,
+      vy: 2 + Math.random() * 4,
+      vr: (Math.random() - .5) * .2,
+      opacity: 1,
+    }));
+
+    confettiRunning = true;
+    let startTime = null;
+
+    function frame(t) {
+      if (!startTime) startTime = t;
+      const elapsed = t - startTime;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      confettiPieces.forEach(p => {
+        p.x  += p.vx;
+        p.y  += p.vy;
+        p.vy += .06;
+        p.angle += p.vr;
+        if (elapsed > 3000) p.opacity = Math.max(0, p.opacity - .012);
+
+        ctx.save();
+        ctx.globalAlpha = p.opacity;
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.angle);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.restore();
+      });
+
+      if (elapsed < 6000 || confettiPieces.some(p => p.opacity > 0)) {
+        requestAnimationFrame(frame);
+      } else {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        confettiRunning = false;
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // ── Load data ─────────────────────────────────────────────────────────────
+  async function load() {
+    if (!s || !k) {
+      document.getElementById('splash-title').textContent = 'Lien invalide';
+      document.getElementById('splash-sub').textContent = 'Paramètres manquants.';
+      document.getElementById('start-btn').style.display = 'none';
+      return;
+    }
+    try {
+      const r    = await fetch(`/api/display/results?s=${s}&k=${k}`);
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Erreur');
+
+      document.getElementById('session-label').textContent = data.session.name;
+      document.getElementById('splash-title').textContent  = data.session.name;
+      document.getElementById('splash-sub').textContent    = showVotes
+        ? `${data.total_votes} votes · ${data.candidates.length} candidat${data.candidates.length > 1 ? 's' : ''}`
+        : `${data.candidates.length} candidat${data.candidates.length > 1 ? 's' : ''}`;
+
+      const sortedByVotes = data.candidates.slice().sort((a, b) => b.vote_count - a.vote_count);
+      const sortedByJury  = data.candidates
+        .filter(c => c.jury_rank !== null && c.jury_rank !== undefined)
+        .slice()
+        .sort((a, b) => (a.jury_rank ?? 9999) - (b.jury_rank ?? 9999));
+
+      if (source === 'jury') {
+        setsToReveal = [{ winners: sortedByJury, label: null }];
+      } else if (source === 'both') {
+        juryWinners = sortedByJury;
+        pubWinners  = sortedByVotes.slice(0, topPublic);
+        setsToReveal = [
+          { winners: juryWinners, label: '⚖️ Palmarès du jury' },
+          { winners: pubWinners,  label: '🗳️ Prix du public' },
+        ];
+      } else {
+        setsToReveal = [{ winners: sortedByVotes, label: null }];
+      }
+
+      currentSet = 0;
+      winners = setsToReveal[0].winners;
+
+      // Build nav dots (1 per revealed winner, up to 3)
+      const count = Math.min(winners.length, 3);
+      const dots  = document.getElementById('nav-dots');
+      dots.innerHTML = Array.from({ length: count }, (_, i) =>
+        `<div class="nav-dot" id="dot-${i}"></div>`
+      ).join('');
+
+    } catch (e) {
+      document.getElementById('splash-title').textContent = 'Erreur';
+      document.getElementById('splash-sub').textContent   = e.message;
+      document.getElementById('start-btn').style.display = 'none';
+    }
+  }
+
+  // ── Render a winner card ───────────────────────────────────────────────────
+  function renderWinner(candidate, rank) {
+    const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
+    const labels = { 1: '1ʳᵉ place', 2: '2ᵉ place', 3: '3ᵉ place' };
+
+    let imgHtml = '';
+    if (candidate.image_url) {
+      let urls = [];
+      try { urls = JSON.parse(candidate.image_url); if (!Array.isArray(urls)) urls = [candidate.image_url]; }
+      catch (_) { urls = [candidate.image_url]; }
+      if (urls[0]) imgHtml = `<img class="winner-photo" src="${urls[0]}" alt="${candidate.name}" />`;
+    }
+
+    const div = document.createElement('div');
+    div.className = `rank-${rank}`;
+    div.innerHTML = `
+      <div class="rank-announce">${labels[rank]}</div>
+      <div class="medal">${medals[rank]}</div>
+      <div class="winner-card">
+        ${imgHtml}
+        <div class="winner-name">${candidate.name}</div>
+        ${candidate.description ? `<div class="winner-desc">${candidate.description}</div>` : ''}
+        ${showVotes ? `<span class="winner-votes">
+          <span class="vote-dot"></span>
+          ${candidate.vote_count} vote${candidate.vote_count > 1 ? 's' : ''} · ${candidate.percentage}%
+        </span>` : ''}
+      </div>
+    `;
+    return div;
+  }
+
+  // ── Advance step ──────────────────────────────────────────────────────────
+  // step -1 = splash | 0 = 3rd | 1 = 2nd | 2 = 1st | 3 = recap podium
+  function advance() {
+    if (animating) return;
+
+    // Handle inter-set transition screen click
+    if (intersetPending) {
+      intersetPending = false;
+      document.getElementById('interset').style.display = 'none';
+      document.getElementById('podium-area').style.display = 'flex';
+      step = 0;
+      showReveal();
+      return;
+    }
+
+    const revealCount = Math.min(winners.length, 3); // how many to reveal (1–3)
+    const lastReveal  = revealCount - 1;              // last individual reveal step
+
+    if (step === -1) {
+      document.getElementById('splash').style.display = 'none';
+      document.getElementById('podium-area').style.display = 'flex';
+      step = 0;
+      showReveal();
+    } else if (step < lastReveal) {
+      step++;
+      showReveal();
+    } else if (step === lastReveal) {
+      // Check if there's another set to reveal
+      if (currentSet < setsToReveal.length - 1) {
+        currentSet++;
+        winners = setsToReveal[currentSet].winners;
+        step = 3; // mark as transitioning
+        showInterset(setsToReveal[currentSet].label);
+      } else {
+        step = 3; // jump to recap
+        showRecap();
+      }
+    }
+    // step 3 = final, nothing more (unless interset pending)
+  }
+
+  function showInterset(label) {
+    animating = false;
+    document.getElementById('podium-area').style.display = 'none';
+    // Parse icon and title from label (e.g. "⚖️ Palmarès du jury")
+    const parts = label ? label.split(' ') : [];
+    const icon  = parts[0] || '';
+    const title = parts.slice(1).join(' ') || label || '';
+    document.getElementById('interset-icon').textContent  = icon;
+    document.getElementById('interset-title').textContent = title;
+    document.getElementById('interset').style.display = 'flex';
+    document.getElementById('hint').textContent    = 'Cliquez pour révéler';
+    document.getElementById('hint').style.opacity  = '1';
+
+    // Rebuild nav dots for new set
+    const count = Math.min(winners.length, 3);
+    const dots  = document.getElementById('nav-dots');
+    dots.innerHTML = Array.from({ length: count }, (_, i) =>
+      `<div class="nav-dot" id="dot-${i}"></div>`
+    ).join('');
+
+    intersetPending = true;
+  }
+
+  function showReveal() {
+    animating = true;
+    const reveal      = document.getElementById('reveal');
+    reveal.innerHTML  = '';
+    const revealCount = Math.min(winners.length, 3);
+
+    // step 0 = 3rd place, 1 = 2nd, 2 = 1st
+    const rank      = revealCount - step;   // 3, 2, 1
+    const candidate = winners[rank - 1];
+    const isFirst   = (rank === 1);
+
+    const el = renderWinner(candidate, rank);
+    reveal.appendChild(el);
+
+    // Nav dots
+    for (let i = 0; i < revealCount; i++) {
+      const dot = document.getElementById(`dot-${i}`);
+      if (dot) dot.className = 'nav-dot' + (i < step ? ' done' : i === step ? ' active' : '');
+    }
+
+    // Hint
+    document.getElementById('hint').textContent = isFirst
+      ? 'Cliquez pour voir le podium'
+      : 'Cliquez pour la place suivante';
+    document.getElementById('hint').style.opacity = '1';
+
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      el.querySelector('.rank-announce')?.classList.add('visible');
+      el.querySelector('.medal')?.classList.add('visible');
+      el.querySelector('.winner-card')?.classList.add('visible');
+      setTimeout(() => { animating = false; }, 900);
+      // Confetti when 1st place revealed
+      if (isFirst) setTimeout(launchConfetti, 600);
+    }));
+  }
+
+  function buildRecapCols(container, list) {
+    container.innerHTML = '';
+    const order  = [list[1], list[0], list[2]].filter(Boolean);
+    const places = list[1] ? [2, 1, 3] : (list[0] ? [1] : []);
+    const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
+    order.forEach((c, i) => {
+      const rank = places[i];
+      let imgHtml = '';
+      if (c.image_url) {
+        let urls = [];
+        try { urls = JSON.parse(c.image_url); if (!Array.isArray(urls)) urls = [c.image_url]; }
+        catch (_) { urls = [c.image_url]; }
+        if (urls[0]) imgHtml = `<img class="recap-photo" src="${urls[0]}" alt="${c.name}" style="width:clamp(40px,7vw,90px);height:clamp(40px,7vw,90px);object-fit:cover;border-radius:50%;border:2px solid rgba(255,255,255,.3);">`;
+      }
+      const col = document.createElement('div');
+      col.className = `recap-winner place-${rank}`;
+      col.innerHTML = `
+        <div class="recap-medal" style="font-size:clamp(1.5rem,4vw,3rem)">${medals[rank]}</div>
+        ${imgHtml}
+        <div class="recap-name" style="font-size:clamp(.7rem,1.8vw,1.2rem);text-align:center">${c.name}</div>
+        ${showVotes ? `<div class="recap-votes" style="font-size:clamp(.6rem,1.2vw,.9rem)">${c.vote_count} vote${c.vote_count > 1 ? 's' : ''} · ${c.percentage}%</div>` : ''}
+      `;
+      container.appendChild(col);
+    });
+  }
+
+  function showRecap() {
+    animating = true;
+    document.getElementById('hint').style.opacity = '0';
+    document.getElementById('podium-area').style.display = 'none';
+
+    if (source === 'both') {
+      // Double podium recap
+      const recapBoth = document.getElementById('recap-both');
+      recapBoth.style.display = 'flex';
+
+      buildRecapCols(document.getElementById('rb-jury-cols'), juryWinners);
+      buildRecapCols(document.getElementById('rb-pub-cols'),  pubWinners);
+
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        recapBoth.querySelectorAll('.recap-winner').forEach(el => el.classList.add('show'));
+        setTimeout(() => {
+          recapBoth.querySelectorAll('.rbar').forEach(b => b.classList.add('show'));
+          setTimeout(launchConfetti, 300);
+          setTimeout(() => { animating = false; }, 800);
+        }, 500);
+      }));
+    } else {
+      // Single podium recap
+      const recap = document.getElementById('recap');
+      recap.style.display = 'flex';
+
+      const cols = document.getElementById('recap-cols');
+      buildRecapCols(cols, winners);
+
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        cols.querySelectorAll('.recap-winner').forEach(el => el.classList.add('show'));
+        setTimeout(() => {
+          document.querySelectorAll('#recap .rbar').forEach(b => b.classList.add('show'));
+          setTimeout(launchConfetti, 300);
+          setTimeout(() => { animating = false; }, 800);
+        }, 500);
+      }));
+    }
+  }
+
+  // ── Events ────────────────────────────────────────────────────────────────
+  document.getElementById('start-btn').addEventListener('click', advance);
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('#start-btn')) return;
+    if (step >= 0) advance();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (['Space', 'ArrowRight', 'Enter'].includes(e.code)) { e.preventDefault(); advance(); }
+  });
+
+  load();
+})();
+</script>
+</body>
+</html>

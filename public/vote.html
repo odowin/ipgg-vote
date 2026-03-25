@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#2563eb" />
+  <title>Vote – IPGG</title>
+  <link rel="stylesheet" href="/css/vote.css" />
+</head>
+<body>
+  <div class="page">
+
+    <!-- Header -->
+    <header class="app-header">
+      <div class="app-logo">IPGG <span>Vote</span></div>
+      <div id="header-badge"></div>
+    </header>
+
+
+    <!-- Loading state -->
+    <div class="loading-spinner" id="loading">
+      <div class="spinner"></div>
+    </div>
+
+    <!-- Error banner -->
+    <div class="alert alert-error hidden" id="error-banner"></div>
+
+    <!-- Voting form -->
+    <div id="vote-form" class="hidden fade-in">
+      <h1 class="session-title" id="session-name"></h1>
+      <p class="session-desc" id="session-desc"></p>
+      <p class="vote-instruction">Sélectionnez votre choix puis appuyez sur le bouton pour voter.</p>
+
+      <!-- Candidates inserted here -->
+      <div id="candidates-container"></div>
+
+      <!-- Validate button -->
+      <div class="vote-action">
+        <button class="btn-vote hidden" id="btn-vote" disabled>
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/>
+          </svg>
+          Voter pour ce choix
+        </button>
+      </div>
+    </div>
+
+    <!-- Success screen -->
+    <div class="success-screen hidden" id="success-screen">
+      <div class="success-icon">
+        <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <path d="M20 6L9 17l-5-5"/>
+        </svg>
+      </div>
+      <h2 class="success-title">Votre vote a été enregistré !</h2>
+      <div class="success-candidate" id="success-candidate-name"></div>
+      <p class="success-subtitle">Merci pour votre participation à la journée des doctorants.</p>
+    </div>
+
+  </div><!-- .page -->
+
+  <script>
+  (function () {
+    'use strict';
+
+    // ── URL params ──────────────────────────────────────────────────────────
+    const params    = new URLSearchParams(window.location.search);
+    const sessionId = params.get('s');
+    const urlToken  = params.get('t');
+
+    // vote pass — kept in JS memory only (not cookie, not localStorage)
+    let votePass = null;
+
+    // ── DOM refs ────────────────────────────────────────────────────────────
+    const $loading          = document.getElementById('loading');
+    const $error            = document.getElementById('error-banner');
+    const $voteForm         = document.getElementById('vote-form');
+    const $sessionName      = document.getElementById('session-name');
+    const $sessionDesc      = document.getElementById('session-desc');
+    const $candidates       = document.getElementById('candidates-container');
+    const $btnVote          = document.getElementById('btn-vote');
+    const $successScreen    = document.getElementById('success-screen');
+    const $successCandidate = document.getElementById('success-candidate-name');
+    const $headerBadge      = document.getElementById('header-badge');
+
+    let selectedCandidateId   = null;
+    let selectedCandidateName = '';
+
+    // ── Helper: show error ──────────────────────────────────────────────────
+    function showError(msg) {
+      $loading.classList.add('hidden');
+      $voteForm.classList.add('hidden');
+      $error.textContent = msg;
+      $error.classList.remove('hidden');
+    }
+
+    // ── Build candidate HTML ────────────────────────────────────────────────
+    function buildCandidates(candidates, type) {
+      $candidates.innerHTML = '';
+
+      if (type === 'photo') {
+        const grid = document.createElement('div');
+        grid.className = 'candidates-grid';
+
+        candidates.forEach(c => {
+          const card = document.createElement('div');
+          card.className = 'photo-card';
+          card.dataset.id = c.id;
+          card.dataset.name = c.name;
+
+          let urls = [];
+          if (c.image_url) {
+            try { urls = JSON.parse(c.image_url); if (!Array.isArray(urls)) urls = [c.image_url]; }
+            catch(_) { urls = [c.image_url]; }
+          }
+
+          const imgWrap = document.createElement('div');
+          imgWrap.className = 'photo-img-wrap';
+
+          if (urls.length > 1) {
+            // Galerie avec navigation
+            let idx = 0;
+            const gallery = document.createElement('div');
+            gallery.style.cssText = 'position:relative;width:100%;height:100%;';
+            const img = document.createElement('img');
+            img.src = urls[0]; img.alt = c.name; img.loading = 'lazy';
+            gallery.appendChild(img);
+            const dots = document.createElement('div');
+            dots.style.cssText = 'position:absolute;bottom:22px;left:0;right:0;display:flex;justify-content:center;gap:4px;pointer-events:none;';
+            urls.forEach((_, i) => {
+              const d = document.createElement('span');
+              d.style.cssText = `width:6px;height:6px;border-radius:50%;background:${i===0?'#fff':'rgba(255,255,255,.5)'};display:inline-block;`;
+              dots.appendChild(d);
+            });
+            gallery.appendChild(dots);
+            const prev = document.createElement('button');
+            prev.textContent = '‹'; prev.style.cssText = 'position:absolute;left:2px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.4);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:14px;line-height:1;padding:0;z-index:2;';
+            const next = document.createElement('button');
+            next.textContent = '›'; next.style.cssText = 'position:absolute;right:2px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.4);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:14px;line-height:1;padding:0;z-index:2;';
+            function goTo(i) {
+              idx = (i + urls.length) % urls.length;
+              img.src = urls[idx];
+              dots.querySelectorAll('span').forEach((d, j) => d.style.background = j===idx?'#fff':'rgba(255,255,255,.5)');
+            }
+            prev.addEventListener('click', e => { e.stopPropagation(); goTo(idx - 1); });
+            next.addEventListener('click', e => { e.stopPropagation(); goTo(idx + 1); });
+
+            // Swipe tactile
+            let touchStartX = 0;
+            gallery.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
+            gallery.addEventListener('touchend', e => {
+              const dx = e.changedTouches[0].clientX - touchStartX;
+              if (Math.abs(dx) > 40) { e.stopPropagation(); goTo(dx < 0 ? idx + 1 : idx - 1); }
+            });
+
+            gallery.appendChild(prev); gallery.appendChild(next);
+            imgWrap.appendChild(gallery);
+          } else if (urls.length === 1) {
+            const img = document.createElement('img');
+            img.src = urls[0]; img.alt = c.name; img.loading = 'lazy';
+            imgWrap.appendChild(img);
+          } else {
+            const ph = document.createElement('div');
+            ph.className = 'photo-placeholder';
+            ph.textContent = c.name;
+            imgWrap.appendChild(ph);
+          }
+
+          card.appendChild(imgWrap);
+
+          const label = document.createElement('div');
+          label.className = 'photo-label';
+          label.textContent = c.name;
+          imgWrap.appendChild(label);
+
+          const badge = document.createElement('div');
+          badge.className = 'selected-badge';
+          imgWrap.appendChild(badge);
+
+          if (c.description) {
+            const desc = document.createElement('div');
+            desc.className = 'photo-card-desc';
+            desc.textContent = c.description;
+            card.appendChild(desc);
+          }
+
+          card.addEventListener('click', () => selectCandidate(c.id, c.name));
+          grid.appendChild(card);
+        });
+
+        $candidates.appendChild(grid);
+
+      } else {
+        // Thesis — list layout
+        const list = document.createElement('div');
+        list.className = 'candidates-list';
+
+        candidates.forEach(c => {
+          const card = document.createElement('div');
+          card.className = 'candidate-card';
+          card.dataset.id = c.id;
+          card.dataset.name = c.name;
+
+          const checkIcon = document.createElement('div');
+          checkIcon.className = 'check-icon';
+
+          const body = document.createElement('div');
+          body.className = 'card-body';
+
+          const nameEl = document.createElement('div');
+          nameEl.className = 'card-name';
+          nameEl.textContent = c.name;
+
+          body.appendChild(nameEl);
+
+          if (c.description) {
+            const descEl = document.createElement('div');
+            descEl.className = 'card-desc';
+            descEl.textContent = c.description;
+            body.appendChild(descEl);
+          }
+
+          card.appendChild(checkIcon);
+          card.appendChild(body);
+          card.addEventListener('click', () => selectCandidate(c.id, c.name));
+          list.appendChild(card);
+        });
+
+        $candidates.appendChild(list);
+      }
+    }
+
+    // ── Select a candidate ──────────────────────────────────────────────────
+    function selectCandidate(id, name) {
+      selectedCandidateId   = id;
+      selectedCandidateName = name;
+
+      // Update visual state
+      document.querySelectorAll('.candidate-card, .photo-card').forEach(el => {
+        el.classList.toggle('selected', parseInt(el.dataset.id) === id);
+      });
+
+      $btnVote.classList.remove('hidden');
+      $btnVote.disabled = false;
+    }
+
+    // ── Submit vote ─────────────────────────────────────────────────────────
+    async function submitVote() {
+      if (!selectedCandidateId || !votePass) return;
+      $btnVote.disabled = true;
+      $loading.classList.remove('hidden');
+      $voteForm.classList.add('hidden');
+
+      try {
+        const r = await fetch('/api/vote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId,
+            candidateId: selectedCandidateId,
+            votePass,
+          }),
+        });
+        const data = await r.json();
+
+        $loading.classList.add('hidden');
+        if (r.ok && data.success) {
+          $successCandidate.textContent = '✓ ' + selectedCandidateName;
+          $successScreen.classList.remove('hidden');
+        } else {
+          $btnVote.disabled = false;
+          $voteForm.classList.remove('hidden');
+          showError(data.error || 'Une erreur est survenue.');
+        }
+      } catch (_) {
+        $loading.classList.add('hidden');
+        $btnVote.disabled = false;
+        $voteForm.classList.remove('hidden');
+        showError('Erreur réseau. Vérifiez votre connexion et réessayez.');
+      }
+    }
+
+    // ── Main init ───────────────────────────────────────────────────────────
+    async function init() {
+      if (!sessionId) {
+        showError('Lien invalide. Paramètre de session manquant.');
+        return;
+      }
+
+      // Exchange token (or no token if QR disabled) for a vote pass
+      try {
+        const pr = await fetch('/api/vote/pass', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId, token: urlToken || null }),
+        });
+        const pd = await pr.json();
+        if (!pr.ok) {
+          showError(pd.error || 'Accès refusé. Veuillez scanner le QR code à l\'écran.');
+          return;
+        }
+        votePass = pd.pass;
+      } catch (_) {
+        showError('Erreur réseau. Vérifiez votre connexion.');
+        return;
+      }
+
+      // Fetch session & candidates
+      try {
+        const r = await fetch(`/api/session/${sessionId}`);
+        const data = await r.json();
+
+        if (!r.ok) {
+          showError(data.error || 'Session introuvable.');
+          return;
+        }
+
+        const { session, candidates } = data;
+
+        $sessionName.textContent = session.name;
+        $sessionDesc.textContent  = session.description || '';
+
+        // Badge
+        const badge = document.createElement('span');
+        badge.style.cssText = 'font-size:.75rem;padding:3px 10px;border-radius:20px;background:#dbeafe;color:#1d4ed8;font-weight:600;';
+        badge.textContent = session.type === 'photo' ? '📷 Photo' : '🎓 Thèse';
+        $headerBadge.appendChild(badge);
+
+        buildCandidates(candidates, session.type);
+
+        $loading.classList.add('hidden');
+        $voteForm.classList.remove('hidden');
+
+        $btnVote.addEventListener('click', submitVote);
+
+      } catch (_) {
+        showError('Erreur réseau. Vérifiez votre connexion.');
+      }
+    }
+
+    init();
+  })();
+  </script>
+</body>
+</html>

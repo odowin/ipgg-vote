@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Database
+data/
+
+# Environment
+.env
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploads (optional: remove if you want to track sample images)
+public/uploads/
+
+# Claude memory
+.claude/
+
+# Archives
+nodejs-archive/
+php/

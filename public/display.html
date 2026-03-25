@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Affichage QR – IPGG</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0f172a; color: #fff; font-family: system-ui, sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
+    .session-name { font-size: 1.5rem; font-weight: 700; letter-spacing: .02em; margin-bottom: 24px; opacity: .9; text-align: center; }
+    .qr-wrap { background: #fff; border-radius: 16px; padding: 20px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+    .qr-wrap img { display: block; width: min(80vw, 80vh, 500px); height: auto; }
+    .countdown-bar { margin-top: 24px; width: min(80vw, 500px); }
+    .bar-label { display: flex; justify-content: space-between; font-size: .85rem; opacity: .6; margin-bottom: 6px; }
+    .bar-track { background: rgba(255,255,255,.15); border-radius: 99px; height: 6px; overflow: hidden; }
+    .bar-fill { background: #38bdf8; height: 100%; border-radius: 99px; transition: width .5s linear; }
+    .status-badge { margin-top: 20px; padding: 6px 16px; border-radius: 99px; font-size: .85rem; font-weight: 600; }
+    .badge-open { background: #065f46; color: #6ee7b7; }
+    .badge-closed { background: #7f1d1d; color: #fca5a5; }
+    .error-msg { font-size: 1.2rem; opacity: .7; text-align: center; }
+    .fullscreen-btn { position: fixed; bottom: 16px; right: 16px; background: rgba(255,255,255,.1); border: none; color: #fff; padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: .8rem; }
+    .fullscreen-btn:hover { background: rgba(255,255,255,.2); }
+  </style>
+</head>
+<body>
+  <div id="content">
+    <div class="session-name" id="session-name">Chargement…</div>
+    <div class="qr-wrap" id="qr-wrap" style="display:none">
+      <img id="qr-img" src="" alt="QR Code" />
+    </div>
+    <div class="error-msg" id="error-msg" style="display:none"></div>
+    <div class="countdown-bar" id="countdown-bar" style="display:none">
+      <div class="bar-label">
+        <span>QR Code valide</span>
+        <span id="countdown-text">–</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" id="bar-fill" style="width:100%"></div></div>
+    </div>
+    <div id="status-badge" style="display:none"></div>
+  </div>
+  <button class="fullscreen-btn" onclick="toggleFullscreen()">⛶ Plein écran</button>
+
+  <script>
+  (function() {
+    const params = new URLSearchParams(window.location.search);
+    const s = params.get('s');
+    const k = params.get('k');
+    let windowMs = 30000; // updated from API on each load
+    let refreshTimer = null;
+    let countdownInterval = null;
+
+    if (!s || !k) {
+      document.getElementById('session-name').textContent = 'Lien invalide';
+      return;
+    }
+
+    async function loadQR() {
+      try {
+        const r = await fetch(`/api/display/qr?s=${s}&k=${k}`);
+        const data = await r.json();
+        if (!r.ok) {
+          document.getElementById('session-name').textContent = 'Accès refusé';
+          document.getElementById('error-msg').textContent = data.error || 'Erreur';
+          document.getElementById('error-msg').style.display = 'block';
+          document.getElementById('qr-wrap').style.display = 'none';
+          return;
+        }
+        document.getElementById('session-name').textContent = data.sessionName;
+
+        const isOpen = data.sessionStatus === 'open';
+        document.getElementById('qr-wrap').style.display = isOpen ? 'block' : 'none';
+        document.getElementById('countdown-bar').style.display = isOpen ? 'block' : 'none';
+        document.getElementById('error-msg').style.display = isOpen ? 'none' : 'block';
+        const closedMsg = {
+          closed:   'Session fermée — le vote n\'est pas encore ouvert.',
+          finished: 'Session terminée — le vote est clos.',
+        };
+        document.getElementById('error-msg').textContent = isOpen ? '' : (closedMsg[data.sessionStatus] || 'Session indisponible.');
+
+        if (isOpen) {
+          if (data.windowSeconds) windowMs = data.windowSeconds * 1000;
+          document.getElementById('qr-img').src = data.dataUrl;
+          startCountdown(data.expiresIn);
+          if (refreshTimer) clearTimeout(refreshTimer);
+          refreshTimer = setTimeout(loadQR, data.expiresIn + 500);
+        } else {
+          if (refreshTimer) clearTimeout(refreshTimer);
+          refreshTimer = setTimeout(loadQR, 5000);
+        }
+      } catch(e) {
+        document.getElementById('session-name').textContent = 'Erreur réseau';
+        setTimeout(loadQR, 5000);
+      }
+    }
+
+    function startCountdown(expiresIn) {
+      if (countdownInterval) clearInterval(countdownInterval);
+      let remaining = expiresIn;
+      const bar = document.getElementById('bar-fill');
+      const text = document.getElementById('countdown-text');
+      document.getElementById('countdown-bar').style.display = 'block';
+      function tick() {
+        const secs = Math.max(0, Math.ceil(remaining / 1000));
+        text.textContent = secs + 's';
+        bar.style.width = Math.max(0, (remaining / windowMs) * 100) + '%';
+        remaining -= 1000;
+      }
+      tick();
+      countdownInterval = setInterval(tick, 1000);
+    }
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+      else document.exitFullscreen();
+    }
+    window.toggleFullscreen = toggleFullscreen;
+
+    loadQR();
+  })();
+  </script>
+</body>
+</html>

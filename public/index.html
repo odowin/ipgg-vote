@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#2563eb" />
+  <title>IPGG – Vote</title>
+  <link rel="stylesheet" href="/css/vote.css" />
+  <style>
+    .sessions-list { display:flex; flex-direction:column; gap:14px; width:100%; max-width:480px; margin:0 auto; }
+    .session-card {
+      display:flex; align-items:center; gap:16px;
+      background:var(--surface,#fff); border:1px solid #e2e8f0;
+      border-radius:14px; padding:18px 20px;
+      text-decoration:none; color:inherit;
+      box-shadow:0 2px 8px rgba(0,0,0,.06);
+      transition:transform .15s, box-shadow .15s;
+    }
+    .session-card:hover { transform:translateY(-2px); box-shadow:0 6px 18px rgba(0,0,0,.1); }
+    .session-icon { font-size:2rem; flex-shrink:0; }
+    .session-info strong { display:block; font-size:1rem; font-weight:700; }
+    .session-info span { font-size:.85rem; color:#64748b; }
+    .empty-msg { color:#94a3b8; font-size:.95rem; text-align:center; margin-top:12px; }
+    .spinner-wrap { display:flex; justify-content:center; padding:32px 0; }
+  </style>
+</head>
+<body>
+  <main class="landing">
+    <div class="landing-logo">IPGG</div>
+    <p class="landing-subtitle">Journée des doctorants — Votes en direct</p>
+
+    <div id="sessions-container" class="sessions-list">
+      <div class="spinner-wrap"><div class="spinner"></div></div>
+    </div>
+
+    <p class="landing-instruction" id="landing-instruction" style="display:none">
+      Cliquez sur un concours pour voter.
+    </p>
+  </main>
+
+  <script>
+    const icons = { thesis: '🎓', photo: '📷' };
+    const labels = { thesis: 'Présentation de thèse', photo: 'Concours photo' };
+
+    async function load() {
+      const container = document.getElementById('sessions-container');
+      try {
+        const r = await fetch('/api/sessions/open');
+        const sessions = await r.json();
+        container.innerHTML = '';
+        if (!sessions.length) {
+          container.innerHTML = '<p class="empty-msg">Aucun vote ouvert pour l\'instant.</p>';
+          return;
+        }
+        sessions.forEach(s => {
+          const a = document.createElement('a');
+          a.className = 'session-card';
+          a.href = `/vote?s=${s.id}`;
+          a.innerHTML = `
+            <div class="session-icon">${icons[s.type] || '🗳️'}</div>
+            <div class="session-info">
+              <strong>${esc(s.name)}</strong>
+              <span>${s.description ? esc(s.description) : labels[s.type] || 'Vote ouvert'}</span>
+            </div>
+          `;
+          container.appendChild(a);
+        });
+        document.getElementById('landing-instruction').style.display = '';
+      } catch (_) {
+        container.innerHTML = '<p class="empty-msg">Erreur de chargement. Réessayez.</p>';
+      }
+    }
+
+    function esc(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    load();
+  </script>
+</body>
+</html>

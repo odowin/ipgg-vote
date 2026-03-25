@@ -1,0 +1,1557 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin – IPGG Vote</title>
+  <link rel="stylesheet" href="/css/admin.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════════ LOGIN SCREEN ════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">
+      <h1>IPGG Vote</h1>
+      <p>Interface d'administration</p>
+    </div>
+    <div class="login-error hidden" id="login-error"></div>
+    <form id="login-form">
+      <div class="form-group">
+        <label for="username">Identifiant</label>
+        <input type="text" id="username" name="username" autocomplete="username" required placeholder="admin" />
+      </div>
+      <div class="form-group">
+        <label for="password">Mot de passe</label>
+        <input type="password" id="password" name="password" autocomplete="current-password" required placeholder="••••••••" />
+      </div>
+      <button type="submit" class="btn btn-primary btn-full btn-lg" id="login-btn">
+        Se connecter
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════════════════════ APP SHELL ═══════════════════════════════ -->
+<div id="app" class="hidden">
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        IPGG Vote
+        <span>Administration</span>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-panel="sessions">
+        <span class="nav-icon">📋</span> Sessions
+      </button>
+      <button class="nav-item" data-panel="candidates">
+        <span class="nav-icon">👥</span> Candidats
+      </button>
+      <button class="nav-item" data-panel="qr">
+        <span class="nav-icon">📱</span> Affichage QR
+      </button>
+      <button class="nav-item" data-panel="results">
+        <span class="nav-icon">📊</span> Résultats
+      </button>
+      <button class="nav-item" data-panel="audit">
+        <span class="nav-icon">🔍</span> Audit
+      </button>
+      <button class="nav-item" data-panel="settings">
+        <span class="nav-icon">⚙️</span> Anti-triche
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar" id="user-avatar">A</div>
+        <div>
+          <div style="font-weight:600;color:var(--text)" id="user-name">Admin</div>
+          <button onclick="logout()" style="background:none;border:none;color:var(--text-muted);font-size:.75rem;cursor:pointer;padding:0;font-family:inherit;">
+            Déconnexion
+          </button>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <div class="main-content">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
+        <span class="topbar-title" id="topbar-title">Sessions</span>
+      </div>
+      <div class="topbar-actions">
+        <span style="font-size:.78rem;color:var(--text-muted)" id="topbar-clock"></span>
+      </div>
+    </header>
+
+    <div class="content-area">
+
+      <!-- ─── SESSIONS PANEL ──────────────────────────────────────────── -->
+      <div class="panel active" id="panel-sessions">
+        <div class="panel-header">
+          <h2 class="panel-title">Sessions de vote</h2>
+          <button class="btn btn-primary" onclick="openCreateSessionModal()">+ Nouvelle session</button>
+        </div>
+        <div id="sessions-list">
+          <div class="empty-state"><div class="empty-icon">📋</div>Chargement…</div>
+        </div>
+      </div>
+
+      <!-- ─── CANDIDATES PANEL ────────────────────────────────────────── -->
+      <div class="panel" id="panel-candidates">
+        <div class="panel-header">
+          <h2 class="panel-title">Candidats</h2>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <select id="candidates-session-select" class="form-group" style="margin:0;width:auto;padding:8px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:.85rem;">
+              <option value="">— Choisir une session —</option>
+            </select>
+            <button class="btn btn-primary" onclick="openAddCandidateModal()">+ Ajouter</button>
+          </div>
+        </div>
+        <div id="multi-drop-zone" style="display:none;border:2px dashed var(--border);border-radius:var(--radius-sm);padding:16px;text-align:center;color:var(--text-muted);font-size:.9rem;margin-bottom:12px;cursor:pointer;transition:border-color .2s,background .2s;">
+          Déposez plusieurs images ici pour créer plusieurs candidats en une fois
+          <input type="file" id="multi-drop-input" accept="image/*" multiple style="display:none;" />
+        </div>
+        <div id="candidates-list">
+          <div class="empty-state"><div class="empty-icon">👥</div>Sélectionnez une session</div>
+        </div>
+
+        <!-- Jury ranking section (shown when a session is selected) -->
+        <div id="jury-section" class="hidden" style="margin-top:24px">
+          <div class="card">
+            <div class="panel-header" style="margin-bottom:16px">
+              <h3 style="font-size:1rem;font-weight:700">Classement jury</h3>
+              <button class="btn btn-primary btn-sm" onclick="saveJuryRanks()">Enregistrer</button>
+            </div>
+            <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">
+              Glissez pour réordonner. Le rang 1 = 1ʳᵉ place. Laissez vide pour exclure du palmarès jury.
+            </p>
+            <div id="jury-list" style="display:flex;flex-direction:column;gap:8px"></div>
+            <div id="jury-excluded" style="margin-top:12px;display:none">
+              <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:8px">Candidats exclus du classement jury :</p>
+              <div id="jury-excluded-list" style="display:flex;flex-direction:column;gap:6px"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── QR DISPLAY PANEL ────────────────────────────────────────── -->
+      <div class="panel" id="panel-qr">
+        <div class="panel-header">
+          <h2 class="panel-title">Affichage QR Code</h2>
+          <select id="qr-session-select" style="padding:8px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:.85rem;">
+            <option value="">— Choisir une session ouverte —</option>
+          </select>
+        </div>
+        <div id="qr-display-area">
+          <div class="empty-state"><div class="empty-icon">📱</div>Sélectionnez une session ouverte pour afficher le QR code</div>
+        </div>
+      </div>
+
+      <!-- ─── RESULTS PANEL ───────────────────────────────────────────── -->
+      <div class="panel" id="panel-results">
+        <div class="panel-header">
+          <h2 class="panel-title">Résultats</h2>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <select id="results-session-select" style="padding:8px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:.85rem;">
+              <option value="">— Choisir une session —</option>
+            </select>
+            <button class="btn btn-ghost btn-sm" onclick="exportCSV()">⬇ CSV</button>
+            <span style="font-size:.75rem;color:var(--text-muted)">Actualisation auto 5s</span>
+          </div>
+        </div>
+        <div id="results-area">
+          <div class="empty-state"><div class="empty-icon">📊</div>Sélectionnez une session pour voir les résultats</div>
+        </div>
+      </div>
+
+      <!-- ─── AUDIT PANEL ─────────────────────────────────────────────── -->
+      <div class="panel" id="panel-audit">
+        <div class="panel-header">
+          <h2 class="panel-title">Journal des votes</h2>
+          <select id="audit-session-select" style="padding:8px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:.85rem;">
+            <option value="">— Choisir une session —</option>
+          </select>
+        </div>
+        <div id="audit-area">
+          <div class="empty-state"><div class="empty-icon">🔍</div>Sélectionnez une session pour voir les votes</div>
+        </div>
+      </div>
+
+      <!-- ─── SETTINGS PANEL ─────────────────────────────────────────── -->
+      <div class="panel" id="panel-settings">
+        <div class="panel-header">
+          <h2 class="panel-title">Paramètres anti-triche</h2>
+          <button class="btn btn-primary" onclick="saveSettings()">Enregistrer</button>
+        </div>
+
+        <div class="card" style="max-width:600px">
+          <div style="display:flex;flex-direction:column;gap:24px;padding:8px 0">
+
+            <!-- QR requis -->
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+              <div>
+                <div style="font-weight:600;margin-bottom:4px">Vérification par QR code</div>
+                <div style="font-size:.82rem;color:var(--text-muted)">Si désactivé, n'importe qui avec l'URL peut voter sans scanner le QR.</div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="set-qr-enabled" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <hr style="border:none;border-top:1px solid var(--border)">
+
+            <!-- Durée fenêtre QR -->
+            <div>
+              <label style="font-weight:600;display:block;margin-bottom:6px">
+                Durée de rotation du QR (secondes)
+              </label>
+              <div style="font-size:.82rem;color:var(--text-muted);margin-bottom:8px">Le QR change toutes les N secondes. Plus court = plus difficile à partager par photo/WhatsApp.</div>
+              <input type="number" id="set-qr-window" min="5" max="3600" step="1"
+                style="width:120px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2);color:var(--text);font-size:.9rem" />
+              <span style="font-size:.82rem;color:var(--text-muted);margin-left:8px" id="set-qr-window-label"></span>
+            </div>
+
+            <!-- Fenêtres de tolérance -->
+            <div>
+              <label style="font-weight:600;display:block;margin-bottom:6px">
+                Tolérance de scan (nombre de fenêtres)
+              </label>
+              <div style="font-size:.82rem;color:var(--text-muted);margin-bottom:8px">Le serveur accepte les QR des N dernières fenêtres. Tolérance totale = rotation × fenêtres.</div>
+              <input type="number" id="set-qr-grace" min="1" max="10" step="1"
+                style="width:80px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2);color:var(--text);font-size:.9rem" />
+              <span style="font-size:.82rem;color:var(--text-muted);margin-left:8px" id="set-grace-label"></span>
+            </div>
+
+            <!-- Durée du pass -->
+            <div>
+              <label style="font-weight:600;display:block;margin-bottom:6px">
+                Durée du pass de vote (minutes)
+              </label>
+              <div style="font-size:.82rem;color:var(--text-muted);margin-bottom:8px">Après avoir scanné le QR, le visiteur dispose de N minutes pour voter.</div>
+              <input type="number" id="set-pass-expires" min="1" max="480" step="1"
+                style="width:100px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2);color:var(--text);font-size:.9rem" />
+              <span style="font-size:.82rem;color:var(--text-muted);margin-left:8px" id="set-pass-label"></span>
+            </div>
+
+            <hr style="border:none;border-top:1px solid var(--border)">
+
+            <!-- IP unique -->
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+              <div>
+                <div style="font-weight:600;margin-bottom:4px">Un vote par adresse IP</div>
+                <div style="font-size:.82rem;color:var(--text-muted)">Bloque les votes multiples depuis la même connexion réseau. Désactiver si plusieurs personnes partagent le même réseau Wi-Fi.</div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="set-ip-unique" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <!-- Résumé -->
+            <div id="settings-summary" style="background:var(--surface-2);border-radius:var(--radius-sm);padding:12px 16px;font-size:.82rem;color:var(--text-muted);line-height:1.6"></div>
+
+          </div>
+        </div>
+      </div>
+
+    </div><!-- .content-area -->
+  </div><!-- .main-content -->
+</div><!-- #app -->
+
+<!-- ═══════════════════════════ MODALS ═══════════════════════════════════ -->
+
+<!-- Create/Edit Session Modal -->
+<div class="modal-backdrop hidden" id="session-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title" id="session-modal-title">Nouvelle session</h3>
+      <button class="modal-close" onclick="closeModal('session-modal')">×</button>
+    </div>
+    <input type="hidden" id="session-modal-id" />
+    <div class="form-group">
+      <label>Nom de la session *</label>
+      <input type="text" id="session-modal-name" placeholder="Ex: Ma Thèse en 180 Secondes 2025" />
+    </div>
+    <div class="form-group">
+      <label>Type *</label>
+      <select id="session-modal-type">
+        <option value="thesis">🎓 Thèse en 180 Secondes</option>
+        <option value="photo">📷 Concours Photo</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <textarea id="session-modal-desc" placeholder="Description optionnelle…"></textarea>
+    </div>
+    <div class="form-group" id="session-modal-status-group" style="display:none">
+      <label>Statut</label>
+      <select id="session-modal-status">
+        <option value="closed">Fermée</option>
+        <option value="open">Ouverte</option>
+        <option value="finished">Terminée</option>
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('session-modal')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveSession()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit Candidate Modal -->
+<div class="modal-backdrop hidden" id="candidate-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title" id="candidate-modal-title">Ajouter un candidat</h3>
+      <button class="modal-close" onclick="closeModal('candidate-modal')">×</button>
+    </div>
+    <input type="hidden" id="candidate-modal-id" />
+    <input type="hidden" id="candidate-modal-session-id" />
+    <div class="form-group">
+      <label>Nom *</label>
+      <input type="text" id="candidate-modal-name" placeholder="Nom du candidat / titre de la photo" />
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <textarea id="candidate-modal-desc" placeholder="Description, affiliation, etc."></textarea>
+    </div>
+    <div class="form-group">
+      <label>Images</label>
+      <input type="hidden" id="candidate-modal-image" />
+      <div id="drop-zone" style="border:2px dashed var(--border);border-radius:var(--radius-sm);padding:16px;text-align:center;cursor:pointer;transition:border-color .2s;color:var(--text-muted);font-size:.9rem;">
+        <div id="drop-zone-previews" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:8px;"></div>
+        <div id="drop-zone-label">Glissez une ou plusieurs images ici ou <u>cliquez pour choisir</u></div>
+        <input type="file" id="drop-zone-input" accept="image/*" multiple style="display:none;" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Ordre d'affichage</label>
+      <input type="number" id="candidate-modal-order" value="0" min="0" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('candidate-modal')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveCandidate()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Delete Modal -->
+<div class="modal-backdrop hidden" id="confirm-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">Confirmer la suppression</h3>
+      <button class="modal-close" onclick="closeModal('confirm-modal')">×</button>
+    </div>
+    <p id="confirm-modal-text" style="color:var(--text-muted);font-size:.9rem;line-height:1.6"></p>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('confirm-modal')">Annuler</button>
+      <button class="btn btn-danger" id="confirm-modal-ok">Supprimer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- Display Link Modal -->
+<div class="modal-backdrop hidden" id="podium-link-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">🏆 Page podium</h3>
+      <button class="modal-close" onclick="closeModal('podium-link-modal')">×</button>
+    </div>
+    <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:12px">
+      Projetez cette page lors de la cérémonie. Les gagnants sont révélés 3e → 2e → 1er au clic.
+    </p>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:12px">
+        <label class="toggle-switch" style="margin:0">
+          <input type="checkbox" id="podium-show-votes" onchange="refreshPodiumUrl()" />
+          <span class="toggle-slider"></span>
+        </label>
+        <span style="font-size:.88rem">Afficher le nombre de votes et le pourcentage</span>
+      </label>
+    </div>
+    <div class="form-group">
+      <label style="font-weight:600;display:block;margin-bottom:8px">Source du classement</label>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.88rem">
+          <input type="radio" name="podium-source" value="votes" id="psrc-votes" checked onclick="refreshPodiumUrl()" /> Votes publics uniquement
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.88rem">
+          <input type="radio" name="podium-source" value="jury" id="psrc-jury" onclick="refreshPodiumUrl()" /> Classement jury uniquement
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.88rem">
+          <input type="radio" name="podium-source" value="both" id="psrc-both" onclick="refreshPodiumUrl()" /> Jury + Prix du public (les deux)
+        </label>
+      </div>
+      <div id="podium-top-row" style="display:none;margin-top:10px;align-items:center;gap:10px">
+        <span style="font-size:.85rem;color:var(--text-muted)">Nombre de gagnants publics à révéler :</span>
+        <select id="podium-top-n" onchange="refreshPodiumUrl()" style="padding:4px 8px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:.85rem">
+          <option value="3">Top 3</option>
+          <option value="2">Top 2</option>
+          <option value="1">Top 1</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>URL podium</label>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="podium-link-url" readonly style="flex:1;font-size:.8rem;" />
+        <button class="btn btn-primary btn-sm" onclick="copyPodiumLink()">Copier</button>
+        <a id="podium-link-open" href="#" target="_blank" class="btn btn-ghost btn-sm">Ouvrir</a>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('podium-link-modal')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="display-link-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">Lien moniteur</h3>
+      <button class="modal-close" onclick="closeModal('display-link-modal')">×</button>
+    </div>
+    <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:12px">Partagez ce lien avec la personne qui configure le moniteur. Il affichera le QR code en plein écran.</p>
+    <div class="form-group">
+      <label>URL d'affichage</label>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="display-link-url" readonly style="flex:1;font-size:.8rem;" />
+        <button class="btn btn-primary btn-sm" onclick="copyDisplayLink()">Copier</button>
+        <a id="display-link-open" href="#" target="_blank" class="btn btn-ghost btn-sm">Ouvrir</a>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('display-link-modal')">Fermer</button>
+      <button class="btn btn-danger btn-sm" onclick="regenerateDisplayLink()">🔄 Nouveau lien</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── State ────────────────────────────────────────────────────────────────
+  let token = localStorage.getItem('ipgg_admin_token') || null;
+  let currentPanel = 'sessions';
+  let sessions = [];
+  let qrRefreshInterval = null;
+  let resultsRefreshInterval = null;
+  let qrCountdownInterval = null;
+  let qrWindowSeconds = 60;
+
+  // ── API helper ───────────────────────────────────────────────────────────
+  async function api(method, path, body) {
+    const opts = {
+      method,
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    };
+    if (body) opts.body = JSON.stringify(body);
+    const r = await fetch('/api' + path, opts);
+    const data = await r.json().catch(() => ({}));
+    if (r.status === 401) { logout(); return null; }
+    if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+    return data;
+  }
+
+  // ── Toast ────────────────────────────────────────────────────────────────
+  function toast(msg, type = 'info') {
+    const el = document.createElement('div');
+    el.className = `toast toast-${type}`;
+    el.textContent = msg;
+    document.getElementById('toast-container').appendChild(el);
+    setTimeout(() => el.remove(), 3500);
+  }
+
+  // ── Clock ────────────────────────────────────────────────────────────────
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('topbar-clock').textContent =
+      now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  // ── Login ────────────────────────────────────────────────────────────────
+  document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('login-btn');
+    btn.disabled = true;
+    btn.textContent = 'Connexion…';
+
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const errEl = document.getElementById('login-error');
+
+    try {
+      const r = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        errEl.textContent = data.error || 'Erreur de connexion.';
+        errEl.classList.remove('hidden');
+        btn.disabled = false;
+        btn.textContent = 'Se connecter';
+        return;
+      }
+      token = data.token;
+      localStorage.setItem('ipgg_admin_token', token);
+      document.getElementById('user-name').textContent = data.username;
+      document.getElementById('user-avatar').textContent = data.username.charAt(0).toUpperCase();
+      showApp();
+    } catch (err) {
+      errEl.textContent = 'Erreur réseau.';
+      errEl.classList.remove('hidden');
+      btn.disabled = false;
+      btn.textContent = 'Se connecter';
+    }
+  });
+
+  function showApp() {
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    const savedPanel = localStorage.getItem('ipgg_admin_panel');
+    if (savedPanel) switchPanel(savedPanel);
+    loadSessions();
+    populateSelects();
+  }
+
+  window.logout = function () {
+    localStorage.removeItem('ipgg_admin_token');
+    token = null;
+    document.getElementById('app').classList.add('hidden');
+    document.getElementById('login-screen').classList.remove('hidden');
+    document.getElementById('login-error').classList.add('hidden');
+    document.getElementById('username').value = '';
+    document.getElementById('password').value = '';
+  };
+
+  // ── Navigation ───────────────────────────────────────────────────────────
+  const panelTitles = {
+    sessions: 'Sessions de vote',
+    candidates: 'Candidats',
+    qr: 'Affichage QR Code',
+    results: 'Résultats',
+    audit: 'Journal des votes',
+    settings: 'Paramètres anti-triche',
+  };
+
+  document.querySelectorAll('.nav-item[data-panel]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const panel = btn.dataset.panel;
+      switchPanel(panel);
+      document.getElementById('sidebar').classList.remove('open');
+    });
+  });
+
+  function switchPanel(name) {
+    currentPanel = name;
+    localStorage.setItem('ipgg_admin_panel', name);
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+    document.getElementById(`panel-${name}`).classList.add('active');
+    document.querySelector(`.nav-item[data-panel="${name}"]`).classList.add('active');
+    document.getElementById('topbar-title').textContent = panelTitles[name];
+
+    // Stop old intervals
+    if (resultsRefreshInterval) { clearInterval(resultsRefreshInterval); resultsRefreshInterval = null; }
+    if (qrRefreshInterval)      { clearInterval(qrRefreshInterval);      qrRefreshInterval = null; }
+    if (qrCountdownInterval)    { clearInterval(qrCountdownInterval);    qrCountdownInterval = null; }
+
+    if (name === 'results')  startResultsAutoRefresh();
+    if (name === 'sessions') loadSessions();
+    if (name === 'settings') loadSettings();
+  }
+
+  document.getElementById('mobile-menu-btn').addEventListener('click', () => {
+    document.getElementById('sidebar').classList.toggle('open');
+  });
+
+  // ── Load all sessions ────────────────────────────────────────────────────
+  async function loadSessions() {
+    try {
+      sessions = await api('GET', '/admin/sessions');
+      if (!sessions) return;
+      renderSessionsList();
+      populateSelects();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  }
+
+  function renderSessionsList() {
+    const container = document.getElementById('sessions-list');
+    if (!sessions.length) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div>Aucune session. Créez-en une !</div>';
+      return;
+    }
+
+    container.innerHTML = sessions.map(s => `
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">${esc(s.name)}</div>
+            <div class="card-subtitle">${esc(s.description || '')}</div>
+            <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+              <span class="badge badge-${s.status}">
+                <span class="dot"></span>
+                ${{ closed:'Fermée', open:'Ouverte', finished:'Terminée' }[s.status]}
+              </span>
+              <span class="badge badge-${s.type}">
+                ${{ thesis:'🎓 Thèse', photo:'📷 Photo' }[s.type]}
+              </span>
+              <span style="font-size:.75rem;color:var(--text-muted);padding:3px 0">
+                ${s.total_votes} vote${s.total_votes !== 1 ? 's' : ''}
+              </span>
+            </div>
+          </div>
+          <div class="card-actions">
+            ${s.status !== 'open' ?
+              `<button class="btn btn-success btn-sm" onclick="setStatus(${s.id}, 'open')">▶ Ouvrir</button>` :
+              `<button class="btn btn-warning btn-sm" onclick="setStatus(${s.id}, 'closed')">⏸ Fermer</button>`}
+            ${s.status === 'open' ?
+              `<button class="btn btn-ghost btn-sm" onclick="setStatus(${s.id}, 'finished')">✓ Terminer</button>` : ''}
+            <button class="btn btn-ghost btn-sm" onclick="openEditSessionModal(${s.id})">✏ Modifier</button>
+            <button class="btn btn-ghost btn-sm" onclick="showDisplayLink(${s.id})">▣ Afficher moniteur</button>
+            <button class="btn btn-ghost btn-sm" onclick="showPodiumLink(${s.id})">🏆 Podium</button>
+            <button class="btn btn-danger btn-sm" onclick="confirmDeleteSession(${s.id}, '${esc(s.name)}')">✕</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function populateSelects() {
+    const savedSession = localStorage.getItem('ipgg_admin_sel_session');
+    const selects = ['candidates-session-select', 'qr-session-select', 'results-session-select', 'audit-session-select'];
+    selects.forEach(id => {
+      const el = document.getElementById(id);
+      const isQr = id === 'qr-session-select';
+      const currentVal = el.value || (isQr ? null : savedSession);
+      el.innerHTML = '<option value="">— Choisir une session —</option>';
+
+      const filtered = isQr ? sessions.filter(s => s.status === 'open') : sessions;
+      filtered.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = `${s.name} (${s.status})`;
+        el.appendChild(opt);
+      });
+
+      if (currentVal) {
+        el.value = currentVal;
+        if (el.value) el.dispatchEvent(new Event('change'));
+      }
+    });
+  }
+
+  // ── Session CRUD ─────────────────────────────────────────────────────────
+  window.openCreateSessionModal = function () {
+    document.getElementById('session-modal-title').textContent = 'Nouvelle session';
+    document.getElementById('session-modal-id').value = '';
+    document.getElementById('session-modal-name').value = '';
+    document.getElementById('session-modal-type').value = 'thesis';
+    document.getElementById('session-modal-desc').value = '';
+    document.getElementById('session-modal-status-group').style.display = 'none';
+    openModal('session-modal');
+  };
+
+  window.openEditSessionModal = function (id) {
+    const s = sessions.find(x => x.id === id);
+    if (!s) return;
+    document.getElementById('session-modal-title').textContent = 'Modifier la session';
+    document.getElementById('session-modal-id').value = id;
+    document.getElementById('session-modal-name').value = s.name;
+    document.getElementById('session-modal-type').value = s.type;
+    document.getElementById('session-modal-desc').value = s.description || '';
+    document.getElementById('session-modal-status').value = s.status;
+    document.getElementById('session-modal-status-group').style.display = '';
+    openModal('session-modal');
+  };
+
+  window.saveSession = async function () {
+    const id   = document.getElementById('session-modal-id').value;
+    const name = document.getElementById('session-modal-name').value.trim();
+    const type = document.getElementById('session-modal-type').value;
+    const desc = document.getElementById('session-modal-desc').value.trim();
+    const status = document.getElementById('session-modal-status').value;
+
+    if (!name) { toast('Le nom est requis.', 'error'); return; }
+
+    try {
+      if (id) {
+        await api('PUT', `/admin/sessions/${id}`, { name, type, description: desc, status });
+        toast('Session mise à jour.', 'success');
+      } else {
+        await api('POST', '/admin/sessions', { name, type, description: desc });
+        toast('Session créée.', 'success');
+      }
+      closeModal('session-modal');
+      await loadSessions();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  };
+
+  window.setStatus = async function (id, status) {
+    const s = sessions.find(x => x.id === id);
+    if (!s) return;
+    try {
+      await api('PUT', `/admin/sessions/${id}`, {
+        name: s.name, type: s.type, description: s.description, status,
+      });
+      toast(`Session ${{ open: 'ouverte', closed: 'fermée', finished: 'terminée' }[status]}.`, 'success');
+      await loadSessions();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  };
+
+  window.confirmDeleteSession = function (id, name) {
+    document.getElementById('confirm-modal-text').textContent =
+      `Supprimer la session "${name}" ? Tous les votes et candidats associés seront perdus.`;
+    document.getElementById('confirm-modal-ok').onclick = async () => {
+      try {
+        await api('DELETE', `/admin/sessions/${id}`);
+        toast('Session supprimée.', 'success');
+        closeModal('confirm-modal');
+        await loadSessions();
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    };
+    openModal('confirm-modal');
+  };
+
+  // ── Sync session selects ──────────────────────────────────────────────────
+  const syncedSelects = ['candidates-session-select', 'results-session-select', 'audit-session-select'];
+  syncedSelects.forEach(sid => {
+    document.getElementById(sid).addEventListener('change', e => {
+      const val = e.target.value;
+      if (val) localStorage.setItem('ipgg_admin_sel_session', val);
+      else localStorage.removeItem('ipgg_admin_sel_session');
+      // Sync other selects without re-triggering this listener
+      syncedSelects.forEach(otherId => {
+        if (otherId === sid) return;
+        const other = document.getElementById(otherId);
+        if (other.value !== val) {
+          other.value = val;
+          other.dispatchEvent(new Event('change'));
+        }
+      });
+    });
+  });
+
+  // ── Candidates ───────────────────────────────────────────────────────────
+  document.getElementById('candidates-session-select').addEventListener('change', async (e) => {
+    const id = e.target.value;
+    document.getElementById('multi-drop-zone').style.display = id ? 'block' : 'none';
+    if (!id) {
+      document.getElementById('candidates-list').innerHTML = '<div class="empty-state"><div class="empty-icon">👥</div>Sélectionnez une session</div>';
+      document.getElementById('jury-section').classList.add('hidden');
+      return;
+    }
+    await loadCandidates(id);
+    await loadJuryRanking(id);
+  });
+
+  async function loadCandidates(sessionId) {
+    try {
+      const data = await api('GET', `/admin/sessions/${sessionId}/candidates`);
+      if (!data) return;
+      renderCandidates(data, sessionId);
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  }
+
+  function renderCandidates(candidates, sessionId) {
+    window._lastCandidates = candidates;
+    const container = document.getElementById('candidates-list');
+    if (!candidates.length) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-icon">👥</div>Aucun candidat. Ajoutez-en un !</div>';
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Nom</th>
+              <th>Description</th>
+              <th>Image</th>
+              <th>Votes</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${candidates.map(c => `
+              <tr>
+                <td style="color:var(--text-muted)">${c.display_order}</td>
+                <td><strong>${esc(c.name)}</strong></td>
+                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-muted)">${esc(c.description || '—')}</td>
+                <td>
+                  ${c.image_url
+                    ? `<a href="#" onclick="openGallery(${c.id});return false;" style="font-size:.75rem">Voir</a>`
+                    : '<span style="color:var(--text-dim)">—</span>'}
+                </td>
+                <td><strong style="color:var(--primary)">${c.vote_count}</strong></td>
+                <td>
+                  <div style="display:flex;gap:4px">
+                    <button class="btn btn-ghost btn-sm" onclick="openEditCandidateModal(${c.id}, ${sessionId})">✏</button>
+                    <button class="btn btn-danger btn-sm" onclick="confirmDeleteCandidate(${c.id}, '${esc(c.name)}', ${sessionId})">✕</button>
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  // ── Drop zone (multi-image par candidat) ───────────────────────────────────
+  let dropZoneUrls = [];
+
+  function renderDropZonePreviews() {
+    const container = document.getElementById('drop-zone-previews');
+    container.innerHTML = '';
+    dropZoneUrls.forEach((url, i) => {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:relative;display:inline-block;';
+      const img = document.createElement('img');
+      img.src = url; img.style.cssText = 'height:80px;width:80px;object-fit:cover;border-radius:4px;display:block;';
+      const del = document.createElement('button');
+      del.textContent = '×';
+      del.style.cssText = 'position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:18px;height:18px;cursor:pointer;font-size:12px;line-height:1;padding:0;';
+      del.onclick = e => { e.stopPropagation(); dropZoneUrls.splice(i, 1); syncDropZone(); };
+      wrap.appendChild(img); wrap.appendChild(del); container.appendChild(wrap);
+    });
+    const label = document.getElementById('drop-zone-label');
+    label.innerHTML = dropZoneUrls.length
+      ? `${dropZoneUrls.length} image(s) — <u>ajouter d'autres</u>`
+      : 'Glissez une ou plusieurs images ici ou <u>cliquez pour choisir</u>';
+  }
+
+  function syncDropZone() {
+    document.getElementById('candidate-modal-image').value =
+      dropZoneUrls.length === 0 ? '' :
+      dropZoneUrls.length === 1 ? dropZoneUrls[0] :
+      JSON.stringify(dropZoneUrls);
+    renderDropZonePreviews();
+  }
+
+  function resetDropZone() {
+    dropZoneUrls = [];
+    syncDropZone();
+  }
+
+  function setDropZoneImages(urls) {
+    dropZoneUrls = Array.isArray(urls) ? urls : [urls];
+    syncDropZone();
+  }
+
+  async function uploadFile(file) {
+    const fd = new FormData();
+    fd.append('image', file);
+    const token = localStorage.getItem('ipgg_admin_token');
+    const res = await fetch('/api/admin/upload', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erreur upload');
+    return data.url;
+  }
+
+  async function addFilesToDropZone(files) {
+    const images = Array.from(files).filter(f => f.type.startsWith('image/'));
+    for (const file of images) {
+      try { dropZoneUrls.push(await uploadFile(file)); } catch (err) { toast(err.message, 'error'); }
+    }
+    syncDropZone();
+  }
+
+  (function initDropZone() {
+    const zone  = document.getElementById('drop-zone');
+    const input = document.getElementById('drop-zone-input');
+
+    zone.addEventListener('click', () => input.click());
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = 'var(--primary)'; });
+    zone.addEventListener('dragleave', () => { zone.style.borderColor = 'var(--border)'; });
+    zone.addEventListener('drop', async e => {
+      e.preventDefault(); zone.style.borderColor = 'var(--border)';
+      await addFilesToDropZone(e.dataTransfer.files);
+    });
+    input.addEventListener('change', async () => {
+      await addFilesToDropZone(input.files);
+      input.value = '';
+    });
+  })();
+
+  // ── Multi-image drop zone ──────────────────────────────────────────────────
+  (function initMultiDrop() {
+    const zone  = document.getElementById('multi-drop-zone');
+    const input = document.getElementById('multi-drop-input');
+
+    zone.addEventListener('click', () => input.click());
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = 'var(--primary)'; zone.style.background = 'var(--surface-2)'; });
+    zone.addEventListener('dragleave', () => { zone.style.borderColor = 'var(--border)'; zone.style.background = ''; });
+    zone.addEventListener('drop', async e => {
+      e.preventDefault();
+      zone.style.borderColor = 'var(--border)'; zone.style.background = '';
+      await handleMultiFiles(Array.from(e.dataTransfer.files));
+    });
+    input.addEventListener('change', async () => {
+      await handleMultiFiles(Array.from(input.files));
+      input.value = '';
+    });
+
+    async function handleMultiFiles(files) {
+      const sessionId = document.getElementById('candidates-session-select').value;
+      if (!sessionId) { toast('Sélectionnez d\'abord une session.', 'error'); return; }
+      const images = files.filter(f => f.type.startsWith('image/'));
+      if (!images.length) { toast('Aucune image détectée.', 'error'); return; }
+
+      toast(`Upload de ${images.length} image(s)…`, 'info');
+      let ok = 0;
+      for (let i = 0; i < images.length; i++) {
+        const file = images[i];
+        try {
+          const url  = await uploadFile(file);
+          const name = file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ');
+          await api('POST', `/admin/sessions/${sessionId}/candidates`, {
+            name, description: null, image_url: url, display_order: i,
+          });
+          ok++;
+        } catch (err) { toast(`${file.name} : ${err.message}`, 'error'); }
+      }
+      if (ok) { toast(`${ok} candidat(s) ajouté(s).`, 'success'); loadCandidates(sessionId); }
+    }
+  })();
+
+  window.openAddCandidateModal = function () {
+    const sessionId = document.getElementById('candidates-session-select').value;
+    if (!sessionId) { toast('Sélectionnez d\'abord une session.', 'error'); return; }
+    document.getElementById('candidate-modal-title').textContent = 'Ajouter un candidat';
+    document.getElementById('candidate-modal-id').value = '';
+    document.getElementById('candidate-modal-session-id').value = sessionId;
+    document.getElementById('candidate-modal-name').value = '';
+    document.getElementById('candidate-modal-desc').value = '';
+    document.getElementById('candidate-modal-order').value = '0';
+    resetDropZone();
+    openModal('candidate-modal');
+  };
+
+  window.openEditCandidateModal = async function (id, sessionId) {
+    try {
+      const candidates = await api('GET', `/admin/sessions/${sessionId}/candidates`);
+      const c = candidates && candidates.find(x => x.id === id);
+      if (!c) return;
+      document.getElementById('candidate-modal-title').textContent = 'Modifier le candidat';
+      document.getElementById('candidate-modal-id').value = id;
+      document.getElementById('candidate-modal-session-id').value = sessionId;
+      document.getElementById('candidate-modal-name').value = c.name;
+      document.getElementById('candidate-modal-desc').value = c.description || '';
+      document.getElementById('candidate-modal-order').value = c.display_order;
+      if (c.image_url) {
+        try { setDropZoneImages(JSON.parse(c.image_url)); } catch(_) { setDropZoneImages([c.image_url]); }
+      } else resetDropZone();
+      openModal('candidate-modal');
+    } catch (err) { toast(err.message, 'error'); }
+  };
+
+  window.saveCandidate = async function () {
+    const id        = document.getElementById('candidate-modal-id').value;
+    const sessionId = document.getElementById('candidate-modal-session-id').value;
+    const name      = document.getElementById('candidate-modal-name').value.trim();
+    const desc      = document.getElementById('candidate-modal-desc').value.trim();
+    const image_url = document.getElementById('candidate-modal-image').value.trim();
+    const display_order = parseInt(document.getElementById('candidate-modal-order').value, 10) || 0;
+
+    if (!name) { toast('Le nom est requis.', 'error'); return; }
+
+    try {
+      if (id) {
+        await api('PUT', `/admin/candidates/${id}`, { name, description: desc, image_url, display_order });
+        toast('Candidat mis à jour.', 'success');
+      } else {
+        await api('POST', `/admin/sessions/${sessionId}/candidates`, { name, description: desc, image_url, display_order });
+        toast('Candidat ajouté.', 'success');
+      }
+      closeModal('candidate-modal');
+      await loadCandidates(sessionId);
+    } catch (err) { toast(err.message, 'error'); }
+  };
+
+  window.openGallery = function (id) {
+    const allCandidates = window._lastCandidates || [];
+    const c = allCandidates.find(x => x.id === id);
+    if (!c || !c.image_url) return;
+    let urls = [];
+    try { urls = JSON.parse(c.image_url); if (!Array.isArray(urls)) urls = [c.image_url]; }
+    catch(_) { urls = [c.image_url]; }
+    const base = window.location.origin;
+    const imgs = urls.map(u => {
+      const abs = u.startsWith('http') ? u : base + u;
+      return `<div style="text-align:center"><img src="${abs}" style="max-width:100%;max-height:80vh;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.2);" /></div>`;
+    }).join('');
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${c.name}</title>
+    <style>body{margin:0;background:#111;font-family:sans-serif;color:#fff;padding:20px;}
+    h2{text-align:center;margin-bottom:20px;}
+    .gallery{display:flex;flex-direction:column;gap:20px;align-items:center;}</style></head>
+    <body><h2>${c.name}</h2><div class="gallery">${imgs}</div></body></html>`;
+    const blob = new Blob([html], { type: 'text/html' });
+    window.open(URL.createObjectURL(blob), '_blank');
+  };
+
+  window.confirmDeleteCandidate = function (id, name, sessionId) {
+    document.getElementById('confirm-modal-text').textContent =
+      `Supprimer le candidat "${name}" ? Ses votes seront également supprimés.`;
+    document.getElementById('confirm-modal-ok').onclick = async () => {
+      try {
+        await api('DELETE', `/admin/candidates/${id}`);
+        toast('Candidat supprimé.', 'success');
+        closeModal('confirm-modal');
+        await loadCandidates(sessionId);
+      } catch (err) { toast(err.message, 'error'); }
+    };
+    openModal('confirm-modal');
+  };
+
+  // ── QR Display ───────────────────────────────────────────────────────────
+  document.getElementById('qr-session-select').addEventListener('change', (e) => {
+    if (qrRefreshInterval)   { clearInterval(qrRefreshInterval);   qrRefreshInterval = null; }
+    if (qrCountdownInterval) { clearInterval(qrCountdownInterval); qrCountdownInterval = null; }
+    const id = e.target.value;
+    if (!id) {
+      document.getElementById('qr-display-area').innerHTML = '<div class="empty-state"><div class="empty-icon">📱</div>Sélectionnez une session ouverte</div>';
+      return;
+    }
+    loadQR(id);
+  });
+
+  async function loadQR(sessionId) {
+    const area = document.getElementById('qr-display-area');
+    area.innerHTML = '<div class="empty-state"><div class="empty-icon">⏳</div>Génération du QR code…</div>';
+    try {
+      const data = await api('GET', `/admin/qr/${sessionId}`);
+      if (!data) return;
+
+      qrWindowSeconds = data.windowSeconds || 30;
+
+      area.innerHTML = `
+        <div class="qr-display-box">
+          <div style="font-size:.9rem;color:var(--text-muted)">
+            Scannez pour accéder au vote
+          </div>
+          <div class="qr-image-wrap">
+            <img src="${data.dataUrl}" alt="QR Code" id="qr-image" />
+          </div>
+          <div class="qr-token" id="qr-token">${data.token}</div>
+          <div class="qr-countdown">
+            <div class="qr-countdown-label">Renouvellement dans</div>
+            <div class="qr-countdown-value" id="qr-seconds">–</div>
+            <div class="qr-progress">
+              <div class="qr-progress-fill" id="qr-progress-fill"></div>
+            </div>
+          </div>
+          <div style="font-size:.78rem;color:var(--text-dim);max-width:300px;word-break:break-all" id="qr-url">
+            ${data.url}
+          </div>
+        </div>`;
+
+      startQRCountdown(data.expiresIn, sessionId);
+    } catch (err) {
+      area.innerHTML = `<div class="empty-state"><div class="empty-icon">❌</div>${esc(err.message)}</div>`;
+    }
+  }
+
+  function startQRCountdown(expiresIn, sessionId) {
+    if (qrCountdownInterval) clearInterval(qrCountdownInterval);
+    let remaining = expiresIn;
+    const total = qrWindowSeconds * 1000;
+
+    function tick() {
+      const secs = Math.max(0, Math.ceil(remaining / 1000));
+      const el = document.getElementById('qr-seconds');
+      const pf = document.getElementById('qr-progress-fill');
+      if (el) el.textContent = secs;
+      if (pf) pf.style.width = Math.max(0, Math.min(100, (remaining / total) * 100)) + '%';
+      remaining -= 1000;
+
+      if (remaining <= -2000) {
+        clearInterval(qrCountdownInterval);
+        loadQR(sessionId); // refresh QR
+      }
+    }
+
+    tick();
+    qrCountdownInterval = setInterval(tick, 1000);
+  }
+
+  // ── Results ──────────────────────────────────────────────────────────────
+  document.getElementById('results-session-select').addEventListener('change', (e) => {
+    if (resultsRefreshInterval) { clearInterval(resultsRefreshInterval); resultsRefreshInterval = null; }
+    const id = e.target.value;
+    if (!id) {
+      document.getElementById('results-area').innerHTML = '<div class="empty-state"><div class="empty-icon">📊</div>Sélectionnez une session</div>';
+      return;
+    }
+    loadResults(id);
+    if (currentPanel === 'results') startResultsAutoRefresh();
+  });
+
+  function startResultsAutoRefresh() {
+    if (resultsRefreshInterval) clearInterval(resultsRefreshInterval);
+    resultsRefreshInterval = setInterval(() => {
+      const id = document.getElementById('results-session-select').value;
+      if (id) loadResults(id);
+    }, 5000);
+  }
+
+  async function loadResults(sessionId) {
+    try {
+      const data = await api('GET', `/admin/sessions/${sessionId}/results`);
+      if (!data) return;
+      renderResults(data);
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  }
+
+  function renderResults(data) {
+    const area = document.getElementById('results-area');
+    const { session, candidates, total_votes } = data;
+
+    if (!candidates.length) {
+      area.innerHTML = '<div class="empty-state"><div class="empty-icon">📊</div>Aucun candidat dans cette session.</div>';
+      return;
+    }
+
+    const colors = ['gold', 'silver', 'bronze'];
+
+    area.innerHTML = `
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total votes</div>
+          <div class="stat-value primary">${total_votes}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Candidats</div>
+          <div class="stat-value">${candidates.length}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Statut</div>
+          <div class="stat-value" style="font-size:.9rem">
+            <span class="badge badge-${session.status}">${{ closed:'Fermée', open:'Ouverte', finished:'Terminée' }[session.status]}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="results-list">
+        ${candidates.map((c, i) => `
+          <div class="result-row">
+            <div class="result-row-header">
+              <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+                <span style="font-size:1.1rem">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `<span style="color:var(--text-muted);font-size:.8rem">#${i+1}</span>`}</span>
+                <span class="result-name">${esc(c.name)}</span>
+              </div>
+              <div class="result-count">
+                <strong>${c.vote_count}</strong> vote${c.vote_count !== 1 ? 's' : ''} · ${c.percentage}%
+              </div>
+            </div>
+            <div class="result-bar-track">
+              <div class="result-bar-fill ${colors[i] || ''}" style="width:${c.percentage}%"></div>
+            </div>
+          </div>
+        `).join('')}
+      </div>`;
+  }
+
+  window.exportCSV = async function () {
+    const id = document.getElementById('results-session-select').value;
+    if (!id) { toast('Sélectionnez d\'abord une session.', 'error'); return; }
+    try {
+      const r = await fetch(`/api/admin/sessions/${id}/results/csv`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!r.ok) { toast('Erreur export CSV.', 'error'); return; }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `resultats_session_${id}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast('Export CSV téléchargé.', 'success');
+    } catch (err) { toast(err.message, 'error'); }
+  };
+
+  // ── Audit ────────────────────────────────────────────────────────────────
+  document.getElementById('audit-session-select').addEventListener('change', async (e) => {
+    const id = e.target.value;
+    const area = document.getElementById('audit-area');
+    if (!id) {
+      area.innerHTML = '<div class="empty-state"><div class="empty-icon">🔍</div>Sélectionnez une session</div>';
+      return;
+    }
+    area.innerHTML = '<div class="empty-state">Chargement…</div>';
+    try {
+      const votes = await api('GET', `/admin/sessions/${id}/votes`);
+      if (!votes) return;
+      if (!votes.length) {
+        area.innerHTML = '<div class="empty-state"><div class="empty-icon">🔍</div>Aucun vote pour cette session.</div>';
+        return;
+      }
+      area.innerHTML = `
+        <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:12px">${votes.length} vote(s) enregistré(s)</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Candidat</th>
+                <th>IP</th>
+                <th>Localisation</th>
+                <th>Horodatage</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${votes.map(v => {
+                const geo = [v.city, v.country].filter(Boolean).join(', ') || '—';
+                const suspicious = v.country && v.country !== 'FR';
+                return `
+                <tr${suspicious ? ' style="background:rgba(239,68,68,.08)"' : ''}>
+                  <td class="td-mono">${v.id}</td>
+                  <td>${esc(v.candidate_name)}</td>
+                  <td class="td-mono" style="font-size:.75rem">${esc(v.ip_address)}</td>
+                  <td${suspicious ? ' style="color:#ef4444;font-weight:600"' : ''}>${esc(geo)}</td>
+                  <td class="td-mono">${esc(v.voted_at)}</td>
+                  <td>
+                    <button class="btn btn-danger btn-sm" onclick="confirmDeleteVote(${v.id}, ${id})">✕ Supprimer</button>
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    } catch (err) { toast(err.message, 'error'); }
+  });
+
+  window.confirmDeleteVote = function (voteId, sessionId) {
+    document.getElementById('confirm-modal-text').textContent =
+      `Supprimer le vote #${voteId} ? Cette action libèrera l'IP associée pour voter à nouveau.`;
+    document.getElementById('confirm-modal-ok').onclick = async () => {
+      try {
+        await api('DELETE', `/admin/votes/${voteId}`);
+        toast('Vote supprimé.', 'success');
+        closeModal('confirm-modal');
+        // Refresh audit table
+        document.getElementById('audit-session-select').dispatchEvent(new Event('change'));
+      } catch (err) { toast(err.message, 'error'); }
+    };
+    openModal('confirm-modal');
+  };
+
+  // ── Modal helpers ────────────────────────────────────────────────────────
+  window.openModal  = function (id) { document.getElementById(id).classList.remove('hidden'); };
+  window.openModal  = function (id) { document.getElementById(id).classList.remove('hidden'); };
+  window.closeModal = function (id) { document.getElementById(id).classList.add('hidden'); };
+
+  // Close on backdrop click
+  document.querySelectorAll('.modal-backdrop').forEach(bd => {
+    bd.addEventListener('click', (e) => {
+      if (e.target === bd) bd.classList.add('hidden');
+    });
+  });
+
+  // ── Escape helper ────────────────────────────────────────────────────────
+  function esc(str) {
+    if (str == null) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  // ── Podium Link ──────────────────────────────────────────────────────────
+  let podiumBaseUrl = '';
+  let podiumSessionId = null;
+
+  window.showPodiumLink = async function(id) {
+    const data = await api('POST', `/admin/sessions/${id}/display-key`);
+    if (!data) return;
+    podiumSessionId = id;
+    podiumBaseUrl = window.location.origin + `/podium?s=${id}&k=${data.key}`;
+
+    // Load saved prefs for this session
+    const saved = JSON.parse(localStorage.getItem('ipgg_podium_' + id) || '{}');
+    document.getElementById('podium-show-votes').checked = saved.votes || false;
+    const src = saved.source || 'votes';
+    document.querySelector(`input[name="podium-source"][value="${src}"]`).checked = true;
+    document.getElementById('podium-top-n').value = saved.topN || '3';
+
+    refreshPodiumUrl();
+    openModal('podium-link-modal');
+  };
+
+  window.refreshPodiumUrl = function() {
+    const withVotes = document.getElementById('podium-show-votes').checked;
+    const source    = document.querySelector('input[name="podium-source"]:checked')?.value || 'votes';
+    const topN      = parseInt(document.getElementById('podium-top-n').value) || 3;
+
+    // Show/hide top N row
+    document.getElementById('podium-top-row').style.display = source === 'both' ? 'flex' : 'none';
+
+    // Save prefs
+    if (podiumSessionId) {
+      localStorage.setItem('ipgg_podium_' + podiumSessionId, JSON.stringify({ votes: withVotes, source, topN }));
+    }
+
+    let url = podiumBaseUrl;
+    const extra = [];
+    if (withVotes)          extra.push('votes=1');
+    if (source !== 'votes') extra.push('source=' + source);
+    if (source === 'both' && topN !== 3) extra.push('top=' + topN);
+    if (extra.length) url += '&' + extra.join('&');
+    document.getElementById('podium-link-url').value = url;
+    document.getElementById('podium-link-open').href = url;
+  };
+
+  window.copyPodiumLink = function() {
+    const url = document.getElementById('podium-link-url').value;
+    navigator.clipboard.writeText(url).then(() => toast('Lien copié !', 'success'));
+  };
+
+  // ── Display Link ─────────────────────────────────────────────────────────
+  let currentDisplaySessionId = null;
+
+  window.showDisplayLink = async function(id) {
+    currentDisplaySessionId = id;
+    const data = await api('POST', `/admin/sessions/${id}/display-key`);
+    if (!data) return;
+    document.getElementById('display-link-url').value = data.url;
+    document.getElementById('display-link-open').href = data.url;
+    openModal('display-link-modal');
+  };
+
+  window.copyDisplayLink = function() {
+    const url = document.getElementById('display-link-url').value;
+    navigator.clipboard.writeText(url).then(() => toast('Lien copié !', 'success'));
+  };
+
+  window.regenerateDisplayLink = async function() {
+    if (!currentDisplaySessionId) return;
+    const data = await api('POST', `/admin/sessions/${currentDisplaySessionId}/display-key`);
+    if (!data) return;
+    document.getElementById('display-link-url').value = data.url;
+    document.getElementById('display-link-open').href = data.url;
+    toast('Nouveau lien généré. L\'ancien lien ne fonctionne plus.', 'success');
+  };
+
+  // ── Jury Ranking ─────────────────────────────────────────────────────────
+  let jurySessionId = null;
+  let juryItems = [];    // candidates in ranked order
+  let juryExcluded = []; // candidates removed from ranking
+
+  async function loadJuryRanking(sessionId) {
+    jurySessionId = sessionId;
+    const candidates = await api('GET', `/admin/sessions/${sessionId}/candidates`);
+    if (!candidates) return;
+
+    // Ranked candidates sorted by jury_rank, excluded ones (null) by vote_count
+    juryItems    = candidates.filter(c => c.jury_rank !== null && c.jury_rank !== undefined)
+                             .sort((a, b) => a.jury_rank - b.jury_rank);
+    juryExcluded = candidates.filter(c => c.jury_rank === null || c.jury_rank === undefined)
+                             .sort((a, b) => b.vote_count - a.vote_count);
+
+    renderJuryList();
+    document.getElementById('jury-section').classList.remove('hidden');
+  }
+
+  function renderJuryList() {
+    const list = document.getElementById('jury-list');
+    list.innerHTML = '';
+    juryItems.forEach((c, i) => {
+      const item = document.createElement('div');
+      item.className = 'jury-item';
+      item.dataset.id = c.id;
+      item.draggable = true;
+      item.style.cssText = 'display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:grab;user-select:none';
+      item.innerHTML = `
+        <span style="color:var(--text-muted);font-size:1.1rem">⠿</span>
+        <span style="background:var(--primary);color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem;flex-shrink:0">${i + 1}</span>
+        <span style="flex:1;font-weight:600">${esc(c.name)}</span>
+        <span style="font-size:.78rem;color:var(--text-muted)">${c.vote_count} vote${c.vote_count !== 1 ? 's' : ''}</span>
+        <button onclick="removeJuryRank(${c.id})" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1rem;padding:0;line-height:1" title="Retirer du classement jury">✕</button>
+      `;
+      setupJuryDrag(item, i);
+      list.appendChild(item);
+    });
+    updateJuryNumbers();
+
+    // Render excluded candidates
+    const excEl   = document.getElementById('jury-excluded');
+    const excList = document.getElementById('jury-excluded-list');
+    excList.innerHTML = '';
+    if (juryExcluded.length > 0) {
+      juryExcluded.forEach(c => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:12px;padding:8px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);opacity:.65';
+        row.innerHTML = `
+          <span style="flex:1;font-weight:500">${esc(c.name)}</span>
+          <span style="font-size:.78rem;color:var(--text-muted)">${c.vote_count} vote${c.vote_count !== 1 ? 's' : ''}</span>
+          <button onclick="addJuryRank(${c.id})" style="background:var(--primary);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:.8rem;padding:3px 8px;font-weight:700" title="Ajouter au classement jury">+ Ajouter</button>
+        `;
+        excList.appendChild(row);
+      });
+      excEl.style.display = 'block';
+    } else {
+      excEl.style.display = 'none';
+    }
+  }
+
+  function updateJuryNumbers() {
+    document.querySelectorAll('.jury-item').forEach((el, i) => {
+      el.querySelector('span:nth-child(2)').textContent = i + 1;
+    });
+  }
+
+  let dragSrc = null;
+  function setupJuryDrag(item, idx) {
+    item.addEventListener('dragstart', () => { dragSrc = item; item.style.opacity = '.4'; });
+    item.addEventListener('dragend',   () => { item.style.opacity = '1'; });
+    item.addEventListener('dragover',  e => { e.preventDefault(); item.style.borderColor = 'var(--primary)'; });
+    item.addEventListener('dragleave', () => { item.style.borderColor = 'var(--border)'; });
+    item.addEventListener('drop', e => {
+      e.preventDefault();
+      item.style.borderColor = 'var(--border)';
+      if (!dragSrc || dragSrc === item) return;
+      const list = document.getElementById('jury-list');
+      const items = [...list.querySelectorAll('.jury-item')];
+      const fromIdx = items.indexOf(dragSrc);
+      const toIdx   = items.indexOf(item);
+      const [moved] = juryItems.splice(fromIdx, 1);
+      juryItems.splice(toIdx, 0, moved);
+      renderJuryList();
+    });
+  }
+
+  window.removeJuryRank = function(id) {
+    const c = juryItems.find(x => x.id === id);
+    if (!c) return;
+    juryItems    = juryItems.filter(x => x.id !== id);
+    juryExcluded = [...juryExcluded, c].sort((a, b) => b.vote_count - a.vote_count);
+    renderJuryList();
+  };
+
+  window.addJuryRank = function(id) {
+    const c = juryExcluded.find(x => x.id === id);
+    if (!c) return;
+    juryExcluded = juryExcluded.filter(x => x.id !== id);
+    juryItems    = [...juryItems, c];
+    renderJuryList();
+  };
+
+  window.saveJuryRanks = async function() {
+    if (!jurySessionId) { toast('Aucune session sélectionnée.', 'error'); return; }
+    try {
+      // Build ranks object: candidateId -> rank (1-based position in list)
+      const ranks = {};
+      juryItems.forEach((c, i) => { ranks[c.id] = i + 1; });
+
+      // Also set null for any candidates NOT in juryItems (removed via ✕)
+      const allCandidates = await api('GET', `/admin/sessions/${jurySessionId}/candidates`);
+      if (!allCandidates) return;
+      allCandidates.forEach(c => {
+        if (!(c.id in ranks)) ranks[c.id] = null;
+      });
+
+      const data = await api('PUT', `/admin/sessions/${jurySessionId}/jury-ranks`, { ranks });
+      if (data) toast('Classement jury enregistré.', 'success');
+    } catch (err) {
+      toast('Erreur : ' + (err.message || err), 'error');
+    }
+  };
+
+  // ── Auto-login if token stored ────────────────────────────────────────────
+  if (token) {
+    // Validate token
+    fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => {
+        document.getElementById('user-name').textContent = data.username;
+        document.getElementById('user-avatar').textContent = data.username.charAt(0).toUpperCase();
+        showApp();
+      })
+      .catch(() => {
+        localStorage.removeItem('ipgg_admin_token');
+        token = null;
+      });
+  }
+
+  // ── Settings ───────────────────────────────────────────────────────────────
+  function updateSettingsSummary() {
+    const w = parseInt(document.getElementById('set-qr-window').value) || 30;
+    const g = parseInt(document.getElementById('set-qr-grace').value) || 2;
+    const p = parseInt(document.getElementById('set-pass-expires').value) || 90;
+    const totalSec = w * g;
+    const label = totalSec < 60
+      ? `${totalSec} secondes`
+      : `${Math.round(totalSec / 60 * 10) / 10} minute(s)`;
+    document.getElementById('set-qr-window-label').textContent = `(QR change toutes les ${w}s)`;
+    document.getElementById('set-grace-label').textContent = `(tolérance totale : ${label})`;
+    document.getElementById('set-pass-label').textContent = `(${p >= 60 ? Math.round(p / 60 * 10) / 10 + ' h' : p + ' min'})`;
+    const qrOn = document.getElementById('set-qr-enabled').checked;
+    const ipOn = document.getElementById('set-ip-unique').checked;
+    document.getElementById('settings-summary').innerHTML =
+      (qrOn ? `✅ QR requis — tolérance ${label}` : '⚠️ QR <strong>désactivé</strong> — vote libre') + '<br>' +
+      (ipOn ? `✅ 1 vote par IP` : '⚠️ IP unique <strong>désactivé</strong> — votes multiples autorisés') + '<br>' +
+      `✅ Pass valide ${p} min après scan`;
+  }
+
+  async function loadSettings() {
+    const data = await api('GET', '/admin/settings');
+    if (!data) return;
+    document.getElementById('set-qr-enabled').checked   = data.qr_enabled;
+    document.getElementById('set-qr-window').value       = data.qr_window_seconds;
+    document.getElementById('set-qr-grace').value        = data.qr_grace_windows;
+    document.getElementById('set-pass-expires').value    = data.pass_expires_minutes;
+    document.getElementById('set-ip-unique').checked     = data.ip_unique;
+    updateSettingsSummary();
+    ['set-qr-enabled','set-qr-window','set-qr-grace','set-pass-expires','set-ip-unique'].forEach(id => {
+      document.getElementById(id).addEventListener('change', updateSettingsSummary);
+      document.getElementById(id).addEventListener('input', updateSettingsSummary);
+    });
+  }
+
+  window.saveSettings = async function() {
+    const body = {
+      qr_enabled:           document.getElementById('set-qr-enabled').checked,
+      qr_window_seconds:    parseInt(document.getElementById('set-qr-window').value),
+      qr_grace_windows:     parseInt(document.getElementById('set-qr-grace').value),
+      pass_expires_minutes: parseInt(document.getElementById('set-pass-expires').value),
+      ip_unique:            document.getElementById('set-ip-unique').checked,
+    };
+    const data = await api('PUT', '/admin/settings', body);
+    if (data) toast('Paramètres enregistrés.', 'success');
+  };
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+version: '3.9'
+
+services:
+  app:
+    build: .
+    container_name: ipgg-vote
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      # Override these via a .env file or environment variables
+      BASE_URL: ${BASE_URL:-http://localhost:3000}
+      QR_SECRET: ${QR_SECRET:?QR_SECRET is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
+      TOKEN_WINDOW_SECONDS: ${TOKEN_WINDOW_SECONDS:-60}
+      TOKEN_GRACE_WINDOWS: ${TOKEN_GRACE_WINDOWS:-2}
+    volumes:
+      - vote_data:/app/data
+      - vote_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/token/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  vote_data:
+    driver: local
+  vote_logs:
+    driver: local
