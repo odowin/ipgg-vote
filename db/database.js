@@ -4,8 +4,7 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-// Use /data volume if available (Railway persistent volume), otherwise local data/
-const DB_DIR = fs.existsSync('/data') ? '/data' : path.join(__dirname, '..', 'data');
+const DB_DIR = path.join(__dirname, '..', 'data');
 const DB_PATH = path.join(DB_DIR, 'votes.db');
 
 if (!fs.existsSync(DB_DIR)) {
