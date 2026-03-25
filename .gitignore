@@ -1,8 +1,8 @@
 # Dependencies
 node_modules/
 
-# Database
-data/
+# Database (included for initial deploy — re-add "data/" after first push)
+# data/
 
 # Environment
 .env
@@ -15,8 +15,8 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 
-# Uploads (optional: remove if you want to track sample images)
-public/uploads/
+# Uploads (included for initial deploy — re-add "public/uploads/" after first push)
+# public/uploads/
 
 # Claude memory
 .claude/
