@@ -6,7 +6,7 @@
   <title>Affichage QR – IPGG</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #0f172a; color: #fff; font-family: system-ui, sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
+    body { background: #0f172a; color: #fff; font-family: system-ui, sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; overflow: hidden; }
     .session-name { font-size: 1.5rem; font-weight: 700; letter-spacing: .02em; margin-bottom: 24px; opacity: .9; text-align: center; }
     .qr-wrap { background: #fff; border-radius: 16px; padding: 20px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
     .qr-wrap img { display: block; width: min(80vw, 80vh, 500px); height: auto; }
@@ -29,11 +29,7 @@
       <img id="qr-img" src="" alt="QR Code" />
     </div>
     <div class="error-msg" id="error-msg" style="display:none"></div>
-    <div class="countdown-bar" id="countdown-bar" style="display:none">
-      <div class="bar-label">
-        <span>QR Code valide</span>
-        <span id="countdown-text">–</span>
-      </div>
+    <div id="countdown-bar" style="display:none">
       <div class="bar-track"><div class="bar-fill" id="bar-fill" style="width:100%"></div></div>
     </div>
     <div id="status-badge" style="display:none"></div>
@@ -97,11 +93,8 @@
       if (countdownInterval) clearInterval(countdownInterval);
       let remaining = expiresIn;
       const bar = document.getElementById('bar-fill');
-      const text = document.getElementById('countdown-text');
       document.getElementById('countdown-bar').style.display = 'block';
       function tick() {
-        const secs = Math.max(0, Math.ceil(remaining / 1000));
-        text.textContent = secs + 's';
         bar.style.width = Math.max(0, (remaining / windowMs) * 100) + '%';
         remaining -= 1000;
       }
