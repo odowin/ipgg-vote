@@ -1,7 +1,7 @@
-FROM node:20-alpine
+FROM node:20-slim
 
 # Build tools needed for better-sqlite3
-RUN apk add --no-cache python3 make g++
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -16,7 +16,7 @@ COPY . .
 RUN mkdir -p data logs
 
 # Non-root user
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup \
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser \
     && chown -R appuser:appgroup /app
 
 USER appuser
